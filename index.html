@@ -443,6 +443,20 @@
                     </table>
                 </div>
 
+                <div style="margin: 30px 0 20px 0;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #667eea; font-size: 1.1em;">
+                        📝 Nombre del archivo CSV:
+                    </label>
+                    <input 
+                        type="text" 
+                        id="csvNameInput" 
+                        placeholder="nombre-archivo"
+                        style="width: 100%; padding: 15px; border: 2px solid #667eea; border-radius: 8px; font-size: 1.1em; font-family: monospace;">
+                    <small style="color: #666; display: block; margin-top: 5px;">
+                        El archivo se descargará como: <strong><span id="csvNamePreview"></span>.csv</strong>
+                    </small>
+                </div>
+
                 <div class="button-group">
                     <button class="btn btn-primary" id="downloadBtn" style="font-size: 1.2em; padding: 20px 40px;">
                         🚀 Procesar y Descargar CSV
@@ -899,6 +913,63 @@
             document.getElementById('rowCount').textContent = 
                 `Se procesarán ${totalRows} fila${totalRows !== 1 ? 's' : ''}.`;
 
+            // Inicializar nombre del CSV
+            const csvNameInput = document.getElementById('csvNameInput');
+            if (!csvNameInput.value) {
+                csvNameInput.value = state.selectedCommand;
+            }
+            updateCSVNamePreview();
+
+            // Event listener para actualizar preview del nombre
+            csvNameInput.oninput = updateCSVNamePreview;
+
+            // Mostrar sección de preview
+            document.getElementById('previewSection').classList.add('active');
+        }
+
+        // Actualizar preview del nombre del CSV
+        function updateCSVNamePreview() {
+            const csvNameInput = document.getElementById('csvNameInput');
+            const csvNamePreview = document.getElementById('csvNamePreview');
+            const name = csvNameInput.value.trim() || state.selectedCommand;
+            csvNamePreview.textContent = name;
+        }viewBody = document.getElementById('previewBody');
+
+            // Header
+            previewHead.innerHTML = `
+                <tr>
+                    ${template.columns.map(col => `<th>${col}</th>`).join('')}
+                </tr>
+            `;
+
+            // Body (primeras 10 filas)
+            previewBody.innerHTML = '';
+            const previewRows = state.excelData.slice(0, 10);
+
+            previewRows.forEach(row => {
+                const tr = document.createElement('tr');
+                template.columns.forEach(col => {
+                    const td = document.createElement('td');
+                    
+                    // Obtener valor: primero default, luego mapeado, luego vacío
+                    let value = '';
+                    if (state.defaultValues[col]) {
+                        value = state.defaultValues[col];
+                    } else if (state.mapping[col]) {
+                        value = row[state.mapping[col]] || '';
+                    }
+                    
+                    td.textContent = value;
+                    tr.appendChild(td);
+                });
+                previewBody.appendChild(tr);
+            });
+
+            // Actualizar contador de filas
+            const totalRows = state.excelData.length;
+            document.getElementById('rowCount').textContent = 
+                `Se procesarán ${totalRows} fila${totalRows !== 1 ? 's' : ''}.`;
+
             // Mostrar sección de preview
             document.getElementById('previewSection').classList.add('active');
         }
@@ -945,8 +1016,12 @@
             const link = document.createElement('a');
             const url = URL.createObjectURL(blob);
             
+            // Obtener nombre personalizado del CSV
+            const csvNameInput = document.getElementById('csvNameInput');
+            const fileName = csvNameInput.value.trim() || state.selectedCommand;
+            
             link.setAttribute('href', url);
-            link.setAttribute('download', `${state.selectedCommand}.csv`);
+            link.setAttribute('download', `${fileName}.csv`);
             link.style.visibility = 'hidden';
             
             document.body.appendChild(link);
@@ -955,7 +1030,7 @@
 
             // Mostrar mensaje de éxito
             const totalRows = state.excelData.length;
-            alert(`✅ CSV generado con éxito!\n\n📊 Estadísticas:\n- Comando: ${state.selectedCommand}\n- Filas procesadas: ${totalRows}\n- Columnas: ${COMMAND_TEMPLATES[state.selectedCommand].columns.length}\n\n💾 Archivo: ${state.selectedCommand}.csv`);
+            alert(`✅ CSV generado con éxito!\n\n📊 Estadísticas:\n- Comando: ${state.selectedCommand}\n- Filas procesadas: ${totalRows}\n- Columnas: ${COMMAND_TEMPLATES[state.selectedCommand].columns.length}\n\n💾 Archivo: ${fileName}.csv`);
         };
 
         // Reset
