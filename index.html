@@ -933,45 +933,6 @@
             const csvNamePreview = document.getElementById('csvNamePreview');
             const name = csvNameInput.value.trim() || state.selectedCommand;
             csvNamePreview.textContent = name;
-        }viewBody = document.getElementById('previewBody');
-
-            // Header
-            previewHead.innerHTML = `
-                <tr>
-                    ${template.columns.map(col => `<th>${col}</th>`).join('')}
-                </tr>
-            `;
-
-            // Body (primeras 10 filas)
-            previewBody.innerHTML = '';
-            const previewRows = state.excelData.slice(0, 10);
-
-            previewRows.forEach(row => {
-                const tr = document.createElement('tr');
-                template.columns.forEach(col => {
-                    const td = document.createElement('td');
-                    
-                    // Obtener valor: primero default, luego mapeado, luego vacío
-                    let value = '';
-                    if (state.defaultValues[col]) {
-                        value = state.defaultValues[col];
-                    } else if (state.mapping[col]) {
-                        value = row[state.mapping[col]] || '';
-                    }
-                    
-                    td.textContent = value;
-                    tr.appendChild(td);
-                });
-                previewBody.appendChild(tr);
-            });
-
-            // Actualizar contador de filas
-            const totalRows = state.excelData.length;
-            document.getElementById('rowCount').textContent = 
-                `Se procesarán ${totalRows} fila${totalRows !== 1 ? 's' : ''}.`;
-
-            // Mostrar sección de preview
-            document.getElementById('previewSection').classList.add('active');
         }
 
         // Generar CSV
