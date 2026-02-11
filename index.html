@@ -296,6 +296,11 @@
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
 
+        input[type="checkbox"] {
+            cursor: pointer;
+            accent-color: #667eea;
+        }
+
         @keyframes pulse {
             0%, 100% { transform: scale(1); }
             50% { transform: scale(1.05); }
@@ -354,6 +359,40 @@
                     <h3>Arrastra tu archivo Excel aquí</h3>
                     <p>o haz clic para seleccionar</p>
                     <input type="file" id="fileInput" class="file-input" accept=".xlsx,.xls">
+                </div>
+
+                <div id="headerOption" style="display: none; margin-top: 20px;">
+                    <div style="background: #f8f9ff; padding: 20px; border-radius: 10px; border: 2px solid #667eea;">
+                        <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; font-size: 1.1em;">
+                            <input type="checkbox" id="hasHeaderRow" checked style="width: 20px; height: 20px; cursor: pointer; margin-top: 3px;">
+                            <span>
+                                <strong>La primera fila contiene títulos de columnas</strong>
+                                <small style="display: block; color: #666; margin-top: 8px; line-height: 1.5;">
+                                    <strong>✅ CON encabezados (marcado):</strong><br>
+                                    <code style="background: #e8f5e9; padding: 3px 6px; border-radius: 3px; font-size: 0.9em;">
+                                        userid | email | nombre | apellidos
+                                    </code><br>
+                                    <code style="background: white; padding: 3px 6px; border-radius: 3px; font-size: 0.9em;">
+                                        jperez | juan@mail.com | Juan | Pérez
+                                    </code>
+                                    <br><br>
+                                    <strong>❌ SIN encabezados (desmarcado):</strong><br>
+                                    <code style="background: white; padding: 3px 6px; border-radius: 3px; font-size: 0.9em;">
+                                        jperez | juan@mail.com | Juan | Pérez
+                                    </code><br>
+                                    <code style="background: white; padding: 3px 6px; border-radius: 3px; font-size: 0.9em;">
+                                        mlopez | maria@mail.com | Maria | López
+                                    </code><br>
+                                    <small style="color: #f57c00;">⚠️ Se usarán nombres genéricos: Columna1, Columna2, etc.</small>
+                                </small>
+                            </span>
+                        </label>
+                    </div>
+                    <div class="button-group" style="margin-top: 15px;">
+                        <button class="btn btn-primary" id="processFileBtn" style="width: 100%;">
+                            ✅ Procesar Archivo
+                        </button>
+                    </div>
                 </div>
 
                 <div id="templateCreated" style="display: none;">
@@ -599,6 +638,7 @@
             document.getElementById('modeInfoText').innerHTML = '📄 <strong>Modo: Crear Template</strong> - Se generará un Excel vacío con las columnas correctas';
             document.getElementById('uploadArea').style.display = 'none';
             document.getElementById('templateCreated').style.display = 'block';
+            document.getElementById('headerOption').style.display = 'none';
         }
 
         // Modo: Cargar Excel
@@ -608,6 +648,7 @@
             document.getElementById('modeInfoText').innerHTML = '📁 <strong>Modo: Convertir Excel</strong> - Carga tu Excel desordenado y lo convertiremos';
             document.getElementById('uploadArea').style.display = 'block';
             document.getElementById('templateCreated').style.display = 'none';
+            document.getElementById('headerOption').style.display = 'none'; // Se mostrará después de cargar el archivo
         }
 
         // Crear y descargar template Excel vacío
@@ -672,6 +713,8 @@
         });
 
         // Procesar archivo
+        let rawExcelData = null; // Para guardar los datos sin procesar
+
         function handleFile(file) {
             if (!state.selectedCommand) {
                 alert('⚠️ Primero selecciona un comando');
@@ -685,35 +728,17 @@
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, { type: 'array' });
                     const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                    const jsonData = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
                     
-                    if (jsonData.length === 0) {
+                    // Leer como array de arrays para tener control total
+                    rawExcelData = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
+                    
+                    if (rawExcelData.length === 0) {
                         alert('⚠️ El archivo está vacío');
                         return;
                     }
 
-                    state.excelData = jsonData;
-                    state.excelColumns = Object.keys(jsonData[0]);
-                    
-                    // Verificar si el Excel cargado ya tiene las columnas correctas (modo create)
-                    const template = COMMAND_TEMPLATES[state.selectedCommand];
-                    const hasCorrectColumns = template.columns.every(col => 
-                        state.excelColumns.includes(col)
-                    );
-
-                    if (hasCorrectColumns && state.excelColumns.length === template.columns.length) {
-                        // Excel ya tiene formato correcto, mapeo directo
-                        state.mapping = {};
-                        template.columns.forEach(col => {
-                            state.mapping[col] = col;
-                        });
-                        document.getElementById('mappingSection').style.display = 'none';
-                        generatePreview();
-                        alert('✅ Excel con formato correcto detectado! Generando preview...');
-                    } else {
-                        // Excel desordenado, necesita mapeo
-                        setupMapping();
-                    }
+                    // Mostrar opción de header
+                    document.getElementById('headerOption').style.display = 'block';
                     
                 } catch (error) {
                     alert('❌ Error al leer el archivo: ' + error.message);
@@ -721,6 +746,67 @@
             };
             
             reader.readAsArrayBuffer(file);
+        }
+
+        // Procesar archivo según opción de header
+        document.getElementById('processFileBtn').onclick = () => {
+            const hasHeader = document.getElementById('hasHeaderRow').checked;
+            processExcelData(rawExcelData, hasHeader);
+        };
+
+        function processExcelData(rawData, hasHeader) {
+            const template = COMMAND_TEMPLATES[state.selectedCommand];
+
+            if (hasHeader) {
+                // Modo normal: primera fila son headers
+                const headers = rawData[0];
+                const dataRows = rawData.slice(1);
+                
+                state.excelColumns = headers.map(h => String(h).trim());
+                state.excelData = dataRows.map(row => {
+                    const obj = {};
+                    headers.forEach((header, idx) => {
+                        obj[String(header).trim()] = row[idx] || '';
+                    });
+                    return obj;
+                });
+            } else {
+                // Sin headers: generar nombres genéricos
+                const numColumns = rawData[0].length;
+                state.excelColumns = Array.from({ length: numColumns }, (_, i) => `Columna${i + 1}`);
+                
+                state.excelData = rawData.map(row => {
+                    const obj = {};
+                    state.excelColumns.forEach((colName, idx) => {
+                        obj[colName] = row[idx] || '';
+                    });
+                    return obj;
+                });
+            }
+
+            if (state.excelData.length === 0) {
+                alert('⚠️ No hay datos para procesar');
+                return;
+            }
+
+            // Verificar si el Excel cargado ya tiene las columnas correctas (modo create)
+            const hasCorrectColumns = template.columns.every(col => 
+                state.excelColumns.includes(col)
+            );
+
+            if (hasCorrectColumns && state.excelColumns.length === template.columns.length) {
+                // Excel ya tiene formato correcto, mapeo directo
+                state.mapping = {};
+                template.columns.forEach(col => {
+                    state.mapping[col] = col;
+                });
+                document.getElementById('mappingSection').style.display = 'none';
+                generatePreview();
+                alert('✅ Excel con formato correcto detectado! Generando preview...');
+            } else {
+                // Excel desordenado, necesita mapeo
+                setupMapping();
+            }
         }
 
         // Configurar mapeo de columnas
