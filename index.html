@@ -277,6 +277,19 @@
             margin-top: 20px;
         }
 
+        .header-option {
+            transition: all 0.3s ease;
+        }
+
+        .header-option:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .header-option h4 {
+            transition: color 0.3s ease;
+        }
+
         .mapping-summary {
             background: #e8f5e9;
             border-left: 4px solid #4caf50;
@@ -362,33 +375,37 @@
                 </div>
 
                 <div id="headerOption" style="display: none; margin-top: 20px;">
-                    <div style="background: #f8f9ff; padding: 20px; border-radius: 10px; border: 2px solid #667eea;">
-                        <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; font-size: 1.1em;">
-                            <input type="checkbox" id="hasHeaderRow" checked style="width: 20px; height: 20px; cursor: pointer; margin-top: 3px;">
-                            <span>
-                                <strong>La primera fila contiene títulos de columnas</strong>
-                                <small style="display: block; color: #666; margin-top: 8px; line-height: 1.5;">
-                                    <strong>✅ CON encabezados (marcado):</strong><br>
-                                    <code style="background: #e8f5e9; padding: 3px 6px; border-radius: 3px; font-size: 0.9em;">
-                                        userid | email | nombre | apellidos
-                                    </code><br>
-                                    <code style="background: white; padding: 3px 6px; border-radius: 3px; font-size: 0.9em;">
-                                        jperez | juan@mail.com | Juan | Pérez
-                                    </code>
-                                    <br><br>
-                                    <strong>❌ SIN encabezados (desmarcado):</strong><br>
-                                    <code style="background: white; padding: 3px 6px; border-radius: 3px; font-size: 0.9em;">
-                                        jperez | juan@mail.com | Juan | Pérez
-                                    </code><br>
-                                    <code style="background: white; padding: 3px 6px; border-radius: 3px; font-size: 0.9em;">
-                                        mlopez | maria@mail.com | Maria | López
-                                    </code><br>
-                                    <small style="color: #f57c00;">⚠️ Se usarán nombres genéricos: Columna1, Columna2, etc.</small>
-                                </small>
-                            </span>
-                        </label>
+                    <h3 style="color: #667eea; margin-bottom: 15px;">¿Tu Excel tiene encabezados en la primera fila?</h3>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                        <!-- Opción CON encabezados -->
+                        <div class="header-option" id="optionWithHeader" style="background: #f8f9ff; padding: 20px; border-radius: 10px; border: 3px solid #667eea; cursor: pointer;">
+                            <div style="text-align: center; margin-bottom: 10px; font-size: 2em;">✅</div>
+                            <h4 style="color: #667eea; margin-bottom: 10px;">CON Encabezados</h4>
+                            <small style="color: #666; line-height: 1.5; display: block;">
+                                La primera fila tiene títulos:<br>
+                                <code style="background: #e8f5e9; padding: 3px 6px; border-radius: 3px; font-size: 0.85em; display: inline-block; margin-top: 5px;">
+                                    userid | email | nombre
+                                </code>
+                            </small>
+                        </div>
+
+                        <!-- Opción SIN encabezados -->
+                        <div class="header-option" id="optionWithoutHeader" style="background: white; padding: 20px; border-radius: 10px; border: 3px solid #e0e0e0; cursor: pointer;">
+                            <div style="text-align: center; margin-bottom: 10px; font-size: 2em;">📋</div>
+                            <h4 style="color: #666; margin-bottom: 10px;">SIN Encabezados</h4>
+                            <small style="color: #666; line-height: 1.5; display: block;">
+                                Solo datos, sin títulos:<br>
+                                <code style="background: #fff3cd; padding: 3px 6px; border-radius: 3px; font-size: 0.85em; display: inline-block; margin-top: 5px;">
+                                    Columna A | Columna B | Columna C
+                                </code>
+                            </small>
+                        </div>
                     </div>
-                    <div class="button-group" style="margin-top: 15px;">
+
+                    <input type="hidden" id="hasHeaderRow" value="true">
+
+                    <div class="button-group">
                         <button class="btn btn-primary" id="processFileBtn" style="width: 100%;">
                             ✅ Procesar Archivo
                         </button>
@@ -750,8 +767,37 @@
 
         // Procesar archivo según opción de header
         document.getElementById('processFileBtn').onclick = () => {
-            const hasHeader = document.getElementById('hasHeaderRow').checked;
+            const hasHeader = document.getElementById('hasHeaderRow').value === 'true';
             processExcelData(rawExcelData, hasHeader);
+        };
+
+        // Manejar selección de opciones de header
+        document.getElementById('optionWithHeader').onclick = function() {
+            document.getElementById('hasHeaderRow').value = 'true';
+            
+            // Estilos activo
+            this.style.background = '#f8f9ff';
+            this.style.borderColor = '#667eea';
+            this.querySelector('h4').style.color = '#667eea';
+            
+            // Estilos inactivo
+            document.getElementById('optionWithoutHeader').style.background = 'white';
+            document.getElementById('optionWithoutHeader').style.borderColor = '#e0e0e0';
+            document.getElementById('optionWithoutHeader').querySelector('h4').style.color = '#666';
+        };
+
+        document.getElementById('optionWithoutHeader').onclick = function() {
+            document.getElementById('hasHeaderRow').value = 'false';
+            
+            // Estilos activo
+            this.style.background = '#fff8e1';
+            this.style.borderColor = '#ffc107';
+            this.querySelector('h4').style.color = '#f57c00';
+            
+            // Estilos inactivo
+            document.getElementById('optionWithHeader').style.background = 'white';
+            document.getElementById('optionWithHeader').style.borderColor = '#e0e0e0';
+            document.getElementById('optionWithHeader').querySelector('h4').style.color = '#666';
         };
 
         function processExcelData(rawData, hasHeader) {
@@ -771,9 +817,18 @@
                     return obj;
                 });
             } else {
-                // Sin headers: generar nombres genéricos
+                // Sin headers: generar nombres como Columna A, B, C... Z, AA, AB, etc.
                 const numColumns = rawData[0].length;
-                state.excelColumns = Array.from({ length: numColumns }, (_, i) => `Columna${i + 1}`);
+                state.excelColumns = Array.from({ length: numColumns }, (_, i) => {
+                    // Convertir índice a letra estilo Excel: 0=A, 1=B, 25=Z, 26=AA, 27=AB...
+                    let columnLetter = '';
+                    let num = i;
+                    while (num >= 0) {
+                        columnLetter = String.fromCharCode(65 + (num % 26)) + columnLetter;
+                        num = Math.floor(num / 26) - 1;
+                    }
+                    return `Columna ${columnLetter}`;
+                });
                 
                 state.excelData = rawData.map(row => {
                     const obj = {};
