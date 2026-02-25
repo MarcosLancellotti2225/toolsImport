@@ -1,2 +1,0 @@
-# toolsImport
-Generador de templates

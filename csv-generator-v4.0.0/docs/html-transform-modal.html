@@ -1,0 +1,257 @@
+<!-- ============================================
+     MODAL DE TRANSFORMACIONES v4.0.0
+     Modal unificado para todas las transformaciones
+     ============================================ -->
+
+<div id="transformModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 900px;">
+        <div class="modal-header">
+            <h2 id="transformModalTitle">🔀 Transformar Columna</h2>
+            <button class="modal-close" onclick="closeTransformModal()">×</button>
+        </div>
+        
+        <div class="modal-body">
+            <!-- Selector de tipo de transformación -->
+            <div style="margin-bottom: 30px;">
+                <label style="display: block; margin-bottom: 10px; font-weight: 600; font-size: 1.1em;">
+                    🎯 Tipo de Transformación:
+                </label>
+                
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+                    <button class="transform-type-btn" data-type="split" onclick="selectTransformType('split')">
+                        ✂️ Dividir
+                    </button>
+                    <button class="transform-type-btn" data-type="split-multiple" onclick="selectTransformType('split-multiple')">
+                        🔀 División Múltiple
+                    </button>
+                    <button class="transform-type-btn" data-type="combine" onclick="selectTransformType('combine')">
+                        🔗 Combinar
+                    </button>
+                    <button class="transform-type-btn" data-type="regex" onclick="selectTransformType('regex')">
+                        🔍 Extraer (Regex)
+                    </button>
+                    <button class="transform-type-btn" data-type="replace" onclick="selectTransformType('replace')">
+                        📝 Reemplazar
+                    </button>
+                    <button class="transform-type-btn" data-type="case" onclick="selectTransformType('case')">
+                        🔤 Mayús/Minús
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Datos originales (siempre visible) -->
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #333; font-size: 1.1em;">
+                    📊 TUS DATOS ORIGINALES:
+                </label>
+                <div id="transformOriginalData" style="padding: 15px; background: #f8f9ff; border: 2px solid #667eea; border-radius: 8px; max-height: 150px; overflow-y: auto;">
+                    <!-- Se llena dinámicamente -->
+                </div>
+            </div>
+            
+            <!-- === DIVISIÓN SIMPLE === -->
+            <div id="transformSplit" class="transform-config" style="display: none;">
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600;">
+                        ✂️ Separador:
+                    </label>
+                    
+                    <!-- Botones rápidos -->
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap;">
+                        <button onclick="setTransformSeparator(', ')" class="btn btn-primary" style="padding: 8px 15px; font-size: 0.9em; background: #28a745;">
+                            , (coma + espacio)
+                        </button>
+                        <button onclick="setTransformSeparator(',')" class="btn btn-primary" style="padding: 8px 15px; font-size: 0.9em; background: #6c757d;">
+                            , (solo coma)
+                        </button>
+                        <button onclick="setTransformSeparator(' ')" class="btn btn-primary" style="padding: 8px 15px; font-size: 0.9em; background: #6c757d;">
+                            (espacio)
+                        </button>
+                        <button onclick="setTransformSeparator(';')" class="btn btn-primary" style="padding: 8px 15px; font-size: 0.9em; background: #6c757d;">
+                            ; (punto y coma)
+                        </button>
+                    </div>
+                    
+                    <input 
+                        type="text" 
+                        id="transformSeparatorInput" 
+                        placeholder="O escribe tu propio separador..."
+                        style="width: 100%; padding: 12px; border: 2px solid #667eea; border-radius: 8px; font-family: monospace;"
+                        oninput="updateTransformPreview()">
+                </div>
+            </div>
+            
+            <!-- === DIVISIÓN MÚLTIPLE === -->
+            <div id="transformSplitMultiple" class="transform-config" style="display: none;">
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600;">
+                        🔀 Separadores Múltiples:
+                    </label>
+                    <small style="display: block; margin-bottom: 10px; color: #666;">
+                        Ejemplo: "GARCIA,PEREZ JUAN" → Separador 1: "," → Separador 2: " " → ["GARCIA", "PEREZ", "JUAN"]
+                    </small>
+                    
+                    <div id="separatorsList" style="margin-bottom: 10px;">
+                        <div class="separator-row" style="display: flex; gap: 10px; margin-bottom: 8px; align-items: center;">
+                            <span style="min-width: 80px;">Separador 1:</span>
+                            <input type="text" class="multi-separator" data-index="0" placeholder="Ej: ," style="flex: 1; padding: 8px;">
+                            <button onclick="removeSeparator(0)" style="padding: 8px 12px; background: #dc3545; color: white; border: none; border-radius: 5px; display: none;">×</button>
+                        </div>
+                    </div>
+                    
+                    <button onclick="addSeparator()" class="btn btn-primary" style="padding: 8px 15px;">
+                        ➕ Agregar Separador
+                    </button>
+                    
+                    <div style="margin-top: 15px;">
+                        <label>
+                            <input type="checkbox" id="splitMultipleLimit" onchange="updateTransformPreview()">
+                            Limitar número de partes
+                        </label>
+                        <input type="number" id="splitMultipleLimitValue" value="3" min="2" max="10" style="width: 80px; padding: 8px; margin-left: 10px;" onchange="updateTransformPreview()">
+                    </div>
+                </div>
+            </div>
+            
+            <!-- === COMBINAR === -->
+            <div id="transformCombine" class="transform-config" style="display: none;">
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600;">
+                        🔗 Columnas a combinar:
+                    </label>
+                    <div id="columnsToCombi ne" style="display: flex; flex-direction: column; gap: 8px;">
+                        <!-- Se llena dinámicamente -->
+                    </div>
+                    
+                    <label style="display: block; margin-top: 15px; margin-bottom: 8px; font-weight: 600;">
+                        Separador:
+                    </label>
+                    <input 
+                        type="text" 
+                        id="combineSeparator" 
+                        value=" "
+                        placeholder="Ej: espacio, coma, guión..."
+                        style="width: 100%; padding: 8px;"
+                        oninput="updateTransformPreview()">
+                </div>
+            </div>
+            
+            <!-- === REGEX === -->
+            <div id="transformRegex" class="transform-config" style="display: none;">
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600;">
+                        🔍 Patrón Regex:
+                    </label>
+                    <input 
+                        type="text" 
+                        id="regexPattern" 
+                        placeholder="Ej: (\w+)@(\w+\.\w+)"
+                        style="width: 100%; padding: 8px; font-family: monospace;"
+                        oninput="updateTransformPreview()">
+                    <small style="display: block; margin-top: 5px; color: #666;">
+                        Usa paréntesis () para capturar grupos
+                    </small>
+                </div>
+            </div>
+            
+            <!-- === REEMPLAZAR === -->
+            <div id="transformReplace" class="transform-config" style="display: none;">
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600;">
+                        Buscar:
+                    </label>
+                    <input 
+                        type="text" 
+                        id="replaceFind" 
+                        placeholder="Texto a buscar"
+                        style="width: 100%; padding: 8px;"
+                        oninput="updateTransformPreview()">
+                    
+                    <label style="display: block; margin-top: 15px; margin-bottom: 8px; font-weight: 600;">
+                        Reemplazar con:
+                    </label>
+                    <input 
+                        type="text" 
+                        id="replaceWith" 
+                        placeholder="Texto de reemplazo"
+                        style="width: 100%; padding: 8px;"
+                        oninput="updateTransformPreview()">
+                </div>
+            </div>
+            
+            <!-- === MAYÚSCULAS/MINÚSCULAS === -->
+            <div id="transformCase" class="transform-config" style="display: none;">
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600;">
+                        🔤 Tipo de conversión:
+                    </label>
+                    <select id="caseType" style="width: 100%; padding: 12px;" onchange="updateTransformPreview()">
+                        <option value="upper">MAYÚSCULAS</option>
+                        <option value="lower">minúsculas</option>
+                        <option value="title">Título (Primera Letra Mayúscula)</option>
+                        <option value="sentence">Oración (Solo primera mayúscula)</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Preview -->
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #28a745; font-size: 1.1em;">
+                    👁️ CÓMO QUEDA (preview automático):
+                </label>
+                <div id="transformPreview" style="padding: 15px; background: white; border: 2px solid #28a745; border-radius: 8px; max-height: 300px; overflow: auto;">
+                    <span style="color: #999;">Configura la transformación para ver el preview...</span>
+                </div>
+            </div>
+            
+            <!-- Nombrar partes (para división) -->
+            <div id="transformNaming" style="display: none; margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #333; font-size: 1.1em;">
+                    ✏️ Nombra cada parte:
+                </label>
+                <div id="transformNamingInputs"></div>
+            </div>
+            
+            <!-- Columnas que se crearán -->
+            <div id="transformNewColumns" style="display: none; margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #667eea; font-size: 1.1em;">
+                    ✅ Se crearán estas columnas:
+                </label>
+                <div id="transformNewColumnsList" style="padding: 15px; background: #f8f9ff; border: 2px solid #667eea; border-radius: 8px;"></div>
+            </div>
+            
+            <!-- Botones -->
+            <div style="display: flex; gap: 15px; justify-content: flex-end;">
+                <button class="btn btn-secondary" onclick="closeTransformModal()">
+                    ❌ Cancelar
+                </button>
+                <button id="transformApplyBtn" class="btn btn-primary" onclick="applyTransform()" disabled style="opacity: 0.5;">
+                    ✅ Aplicar Transformación
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.transform-type-btn {
+    padding: 12px;
+    border: 2px solid #e0e0e0;
+    background: white;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-size: 0.9em;
+}
+
+.transform-type-btn:hover {
+    border-color: #667eea;
+    background: #f8f9ff;
+}
+
+.transform-type-btn.active {
+    border-color: #667eea;
+    background: #667eea;
+    color: white;
+}
+</style>

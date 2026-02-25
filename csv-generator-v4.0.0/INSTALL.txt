@@ -1,0 +1,136 @@
+╔══════════════════════════════════════════════════════════╗
+║  CSV GENERATOR v4.0.0 - INSTALACIÓN                     ║
+║  Multi-formato + Multi-transformación                    ║
+╚══════════════════════════════════════════════════════════╝
+
+📦 CONTENIDO DEL ZIP:
+─────────────────────────────────────────────────────────
+✅ index.html           - HTML principal (YA INTEGRADO v4.0)
+✅ styles.css           - Estilos (sin cambios)
+✅ app.js               - JavaScript principal (CON v4.0)
+✅ formatLoaders.js     - Carga XLSX/CSV/JSON/XML
+✅ transformations.js   - 10+ transformaciones
+✅ README.md            - Documentación completa
+✅ CHANGELOG.md         - Historial de versiones
+✅ .gitignore           - Para Git
+✅ .nojekyll            - Para GitHub Pages
+✅ INSTALL.txt          - Este archivo
+
+🚀 INSTALACIÓN RÁPIDA (3 PASOS):
+─────────────────────────────────────────────────────────
+
+PASO 1: EXTRAER EL ZIP
+   → Descomprimir en una carpeta local
+
+PASO 2: SUBIR A GITHUB
+   → Opción A (Reemplazar todo):
+     1. git pull origin main
+     2. Copiar TODOS los archivos del ZIP a tu repo local
+     3. git add .
+     4. git commit -m "v4.0.0 - Multi-format + Multi-transform"
+     5. git push origin main
+
+   → Opción B (Desde cero):
+     1. Borrar contenido actual del repo en GitHub
+     2. Subir todos los archivos del ZIP
+     3. git add .
+     4. git commit -m "v4.0.0 - Complete rewrite"
+     5. git push origin main --force
+
+PASO 3: VERIFICAR GITHUB PAGES
+   → Ir a: https://marcoslancellotti2225.github.io/toolsImport/
+   → Esperar 2-3 minutos para que GitHub Pages actualice
+   → ¡Listo! 🎉
+
+✨ CARACTERÍSTICAS v4.0.0:
+─────────────────────────────────────────────────────────
+
+📁 MULTI-FORMATO INPUT:
+   ✅ Excel (.xlsx, .xls)
+   ✅ CSV (auto-detecta separador, encoding configurable)
+   ✅ JSON (array de objetos o objeto con arrays)
+   ✅ XML (auto-detecta estructura)
+
+🔀 MULTI-TRANSFORMACIÓN:
+   ✅ División Simple
+   ✅ División Múltiple (N separadores)
+   ✅ Combinar Columnas
+   ✅ Extraer con Regex
+   ✅ Reemplazar Texto
+   ✅ Mayúsculas/Minúsculas
+   ✅ Substring
+   ✅ Padding
+   ✅ Limpieza
+   ✅ Y más...
+
+📊 PRODUCTOS SOPORTADOS:
+   ✅ IvSign (11 comandos)
+   ✅ IvNeos (3 comandos)
+
+🧪 TESTING RÁPIDO:
+─────────────────────────────────────────────────────────
+
+TEST 1: CSV con división múltiple
+   1. Abrir la app
+   2. Seleccionar IvSign → users-add
+   3. Seleccionar formato: CSV
+   4. Subir archivo CSV con columna "nombre"
+   5. Click "🎨 Transformar" en columna "nombre"
+   6. Seleccionar "División Múltiple"
+   7. Separador 1: ","
+   8. Separador 2: " "
+   9. Nombrar partes y aplicar
+   10. ¡Funciona! ✅
+
+TEST 2: JSON simple
+   1. Crear archivo test.json:
+      [
+        {"userid": "123", "email": "test@example.com"},
+        {"userid": "124", "email": "user@example.com"}
+      ]
+   2. Seleccionar formato: JSON
+   3. Subir archivo
+   4. ¡Se procesa automáticamente! ✅
+
+📖 DOCUMENTACIÓN:
+─────────────────────────────────────────────────────────
+→ README.md          - Guía completa de uso
+→ CHANGELOG.md       - Historial de todas las versiones
+
+❓ PROBLEMAS COMUNES:
+─────────────────────────────────────────────────────────
+
+❌ "GitHub Pages no actualiza"
+   → Esperar 2-3 minutos
+   → Verificar en Settings > Pages que esté habilitado
+   → Hacer Ctrl+F5 para forzar recarga
+
+❌ "PapaParse is not defined"
+   → Verificar conexión a internet (usa CDN)
+   → El archivo index.html ya tiene el script correcto
+
+❌ "FormatLoaders is not defined"
+   → Verificar que formatLoaders.js esté en el repo
+   → Verificar que el script esté antes de app.js
+
+❌ "CSV no detecta separador"
+   → Usar opciones manuales en el selector CSV
+   → Probar diferentes encodings
+
+🎯 SIGUIENTES PASOS DESPUÉS DE INSTALAR:
+─────────────────────────────────────────────────────────
+
+1. Probar con tus archivos reales
+2. Reportar bugs o mejoras
+3. Personalizar según necesites
+4. ¡Disfrutar! 🚀
+
+═══════════════════════════════════════════════════════════
+
+¿Dudas? Revisar README.md o CHANGELOG.md
+
+Versión: 4.0.0
+Fecha: 2025-02-25
+Autor: Claude + Marcos Lancellotti
+
+═══════════════════════════════════════════════════════════

@@ -1,4 +1,4 @@
-const COMMAND_TEMPLATES = {
+        const COMMAND_TEMPLATES = {
             // IvSign Commands
             'users-add': {
                 product: 'ivsign',
@@ -695,7 +695,12 @@ window.openDivisionModal = function(columnName) {
     const excelColumn = state.mapping[columnName];
     
     if (!excelColumn) {
-        alert('⚠️ Primero selecciona una columna de tu Excel en el dropdown');
+        alert(`⚠️ Primero selecciona una columna de tu Excel
+
+En la tabla de arriba, en la fila "${columnName}":
+1. Usa el dropdown "Columna de tu Excel"
+2. Selecciona qué columna del Excel mapear
+3. Luego haz click en "🔀 Dividir"`);
         return;
     }
     
@@ -711,9 +716,21 @@ window.openDivisionModal = function(columnName) {
     divisionState.parts = [];
     divisionState.columnNames = [];
     
-    // Obtener datos de muestra (primeras 3 filas)
-    const colIndex = state.excelColumns.indexOf(excelColumn);
-    divisionState.sourceData = state.excelData.slice(0, 3).map(row => row[colIndex] || '');
+    // Los datos están como objetos {columna: valor}, no como arrays
+    divisionState.sourceData = state.excelData.slice(0, 3).map(row => {
+        const value = row[excelColumn];  // Usar nombre de columna, no índice
+        return value || '';
+    });
+    
+    // Validar que haya datos
+    if (divisionState.sourceData.every(d => !d || d === '')) {
+        alert(`⚠️ La columna "${excelColumn}" está vacía\n\n` +
+              'Verifica que:\n' +
+              '1. La columna tenga datos\n' +
+              '2. El mapeo sea correcto\n' +
+              '3. El archivo esté bien procesado');
+        return;
+    }
     
     // Actualizar UI
     document.getElementById('divisionColumnName').textContent = columnName;
@@ -907,40 +924,44 @@ function applyDivision() {
         return;
     }
     
+    console.log('🔍 APLICANDO DIVISIÓN:');
+    console.log('  Columna origen:', divisionState.sourceColumn);
+    console.log('  Separador:', divisionState.separator);
+    console.log('  Nombres de partes:', divisionState.columnNames);
+    
     // Obtener columna origen
     const sourceCol = divisionState.sourceColumn;
-    const colIndex = state.excelColumns.indexOf(sourceCol);
     
-    if (colIndex === -1) {
-        alert('❌ Error: No se encontró la columna origen');
-        return;
-    }
-    
-    // Procesar TODOS los datos
+    // Procesar TODOS los datos (los datos son objetos, no arrays)
     const allParts = state.excelData.map(row => {
-        const value = row[colIndex] || '';
-        return String(value).split(divisionState.separator);
+        const value = row[sourceCol] || '';  // Usar nombre de columna
+        const parts = String(value).split(divisionState.separator);
+        console.log(`  "${value}" → [${parts.join(' | ')}]`);
+        return parts;
     });
+    
+    console.log('  Total filas procesadas:', allParts.length);
     
     // Crear nuevas columnas
     divisionState.columnNames.forEach((colName, partIndex) => {
         const newColName = `${sourceCol}_${colName}`;
         
+        console.log(`\n  Creando columna: ${newColName} (parte ${partIndex})`);
+        
         // Agregar columna si no existe
         if (!state.excelColumns.includes(newColName)) {
             state.excelColumns.push(newColName);
+            console.log(`    ✅ Columna agregada a excelColumns`);
         }
         
-        // Agregar datos
-        const newColIndex = state.excelColumns.indexOf(newColName);
+        // Agregar datos a cada fila (usando objetos)
+        let valuesAdded = 0;
         allParts.forEach((parts, rowIndex) => {
             const value = parts[partIndex] || '';
-            if (state.excelData[rowIndex].length <= newColIndex) {
-                state.excelData[rowIndex].push(value);
-            } else {
-                state.excelData[rowIndex][newColIndex] = value;
-            }
+            state.excelData[rowIndex][newColName] = value;  // Asignar al objeto
+            if (value) valuesAdded++;
         });
+        console.log(`    ✅ ${valuesAdded}/${allParts.length} valores agregados`);
         
         // Actualizar mapeo automático si coincide
         const template = COMMAND_TEMPLATES[state.selectedCommand];
@@ -948,18 +969,37 @@ function applyDivision() {
         const matchingRequired = requiredCols.find(req => 
             req.toLowerCase() === colName.toLowerCase()
         );
-        if (matchingRequired && !state.mapping[matchingRequired]) {
+        if (matchingRequired) {
+            // Forzar el mapeo a la nueva columna
             state.mapping[matchingRequired] = newColName;
+            
+            console.log(`    ✅ Mapeado: ${matchingRequired} → ${newColName}`);
+        } else {
+            console.log(`    ⚠️ No se encontró mapeo automático para "${colName}"`);
         }
     });
     
     // Cerrar modal
     closeDivisionModal();
     
+    // Refrescar la tabla de mapeo con las nuevas columnas
+    setupMapping();
+    
     // Actualizar preview
     generatePreview();
     
-    // Mensaje de éxito
-    const createdCols = divisionState.columnNames.map(name => `• ${sourceCol}_${name}`).join('\n');
-    alert(`✅ División aplicada!\n\nColumnas creadas:\n${createdCols}`);
+    // Mensaje de éxito con info de mapeo
+    const createdCols = divisionState.columnNames.map((name, idx) => {
+        const newColName = `${sourceCol}_${name}`;
+        const template = COMMAND_TEMPLATES[state.selectedCommand];
+        const mappedTo = template.columns.find(req => 
+            req.toLowerCase() === name.toLowerCase()
+        );
+        if (mappedTo) {
+            return `• ${newColName} → "${mappedTo}"`;
+        }
+        return `• ${newColName}`;
+    }).join('\n');
+    
+    alert(`✅ División aplicada!\n\nColumnas creadas y mapeadas:\n${createdCols}`);
 }

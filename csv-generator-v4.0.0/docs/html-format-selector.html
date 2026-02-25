@@ -1,0 +1,229 @@
+<!-- ============================================
+     SELECTOR DE FORMATO v4.0.0
+     Insertar en PASO 2 del index.html
+     ============================================ -->
+
+<div class="step">
+    <div class="step-title">
+        <span class="step-number">2</span>
+        Carga tus datos
+    </div>
+    
+    <!-- Selector de formato -->
+    <div style="margin-bottom: 20px;">
+        <label style="display: block; margin-bottom: 10px; font-weight: 600;">
+            📁 Formato del archivo:
+        </label>
+        
+        <div class="format-selector" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+            <!-- XLSX -->
+            <div class="format-card" data-format="xlsx" onclick="selectFormat('xlsx')" style="cursor: pointer; padding: 20px; border: 2px solid #e0e0e0; border-radius: 10px; text-align: center; transition: all 0.3s;">
+                <div style="font-size: 2em; margin-bottom: 10px;">📊</div>
+                <div style="font-weight: 600; margin-bottom: 5px;">Excel</div>
+                <div style="font-size: 0.85em; color: #666;">.xlsx, .xls</div>
+            </div>
+            
+            <!-- CSV -->
+            <div class="format-card" data-format="csv" onclick="selectFormat('csv')" style="cursor: pointer; padding: 20px; border: 2px solid #e0e0e0; border-radius: 10px; text-align: center; transition: all 0.3s;">
+                <div style="font-size: 2em; margin-bottom: 10px;">📄</div>
+                <div style="font-weight: 600; margin-bottom: 5px;">CSV</div>
+                <div style="font-size: 0.85em; color: #666;">.csv</div>
+            </div>
+            
+            <!-- JSON -->
+            <div class="format-card" data-format="json" onclick="selectFormat('json')" style="cursor: pointer; padding: 20px; border: 2px solid #e0e0e0; border-radius: 10px; text-align: center; transition: all 0.3s;">
+                <div style="font-size: 2em; margin-bottom: 10px;">🔧</div>
+                <div style="font-weight: 600; margin-bottom: 5px;">JSON</div>
+                <div style="font-size: 0.85em; color: #666;">.json</div>
+            </div>
+            
+            <!-- XML -->
+            <div class="format-card" data-format="xml" onclick="selectFormat('xml')" style="cursor: pointer; padding: 20px; border: 2px solid #e0e0e0; border-radius: 10px; text-align: center; transition: all 0.3s;">
+                <div style="font-size: 2em; margin-bottom: 10px;">📝</div>
+                <div style="font-weight: 600; margin-bottom: 5px;">XML</div>
+                <div style="font-size: 0.85em; color: #666;">.xml</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Opciones según formato -->
+    <div id="formatOptions" style="display: none; margin-bottom: 20px; padding: 15px; background: #f8f9ff; border-radius: 10px;">
+        <!-- CSV Options -->
+        <div id="csvOptions" class="format-options" style="display: none;">
+            <h4 style="margin-bottom: 15px;">⚙️ Opciones CSV:</h4>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                <div>
+                    <label>Separador:</label>
+                    <select id="csvDelimiter" style="width: 100%; padding: 8px; border-radius: 5px;">
+                        <option value="auto">🔍 Auto-detectar</option>
+                        <option value=",">, (coma)</option>
+                        <option value=";">; (punto y coma)</option>
+                        <option value="\t">⇥ (tabulador)</option>
+                        <option value="|">| (pipe)</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label>Encoding:</label>
+                    <select id="csvEncoding" style="width: 100%; padding: 8px; border-radius: 5px;">
+                        <option value="UTF-8">UTF-8</option>
+                        <option value="ISO-8859-1">Latin1 (ISO-8859-1)</option>
+                        <option value="Windows-1252">Windows-1252</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="csvHasHeader" checked>
+                        Primera fila son headers
+                    </label>
+                </div>
+            </div>
+        </div>
+        
+        <!-- XML Options -->
+        <div id="xmlOptions" class="format-options" style="display: none;">
+            <h4 style="margin-bottom: 15px;">⚙️ Opciones XML:</h4>
+            
+            <div>
+                <label>Nombre del elemento fila (opcional):</label>
+                <input 
+                    type="text" 
+                    id="xmlRowPath" 
+                    placeholder="Ej: user, row, item (vacío = auto-detectar)"
+                    style="width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #ddd;">
+                <small style="color: #666; display: block; margin-top: 5px;">
+                    Dejar vacío para auto-detectar el elemento que se repite
+                </small>
+            </div>
+        </div>
+    </div>
+    
+    <!-- File input -->
+    <div style="margin-top: 20px;">
+        <input 
+            type="file" 
+            id="fileInput" 
+            accept=".xlsx,.xls,.csv,.json,.xml"
+            style="display: none;"
+            onchange="handleFileUpload(event)">
+        
+        <button 
+            id="uploadBtn"
+            onclick="document.getElementById('fileInput').click()" 
+            class="btn btn-primary" 
+            style="width: 100%; padding: 15px; font-size: 1.1em; display: none;">
+            📁 Seleccionar Archivo
+        </button>
+        
+        <div id="noFormatSelected" style="text-align: center; padding: 40px; color: #999;">
+            👆 Primero selecciona el formato del archivo
+        </div>
+    </div>
+</div>
+
+<style>
+.format-card:hover {
+    border-color: #667eea !important;
+    background: #f8f9ff !important;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+}
+
+.format-card.selected {
+    border-color: #667eea !important;
+    background: #667eea !important;
+    color: white;
+}
+
+.format-card.selected div {
+    color: white !important;
+}
+</style>
+
+<script>
+// Estado del formato seleccionado
+let selectedFormat = null;
+
+function selectFormat(format) {
+    selectedFormat = format;
+    
+    // Actualizar UI
+    document.querySelectorAll('.format-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+    document.querySelector(`[data-format="${format}"]`).classList.add('selected');
+    
+    // Mostrar botón de upload
+    document.getElementById('uploadBtn').style.display = 'block';
+    document.getElementById('noFormatSelected').style.display = 'none';
+    
+    // Mostrar opciones según formato
+    document.querySelectorAll('.format-options').forEach(opt => opt.style.display = 'none');
+    document.getElementById('formatOptions').style.display = 'none';
+    
+    if (format === 'csv') {
+        document.getElementById('formatOptions').style.display = 'block';
+        document.getElementById('csvOptions').style.display = 'block';
+    } else if (format === 'xml') {
+        document.getElementById('formatOptions').style.display = 'block';
+        document.getElementById('xmlOptions').style.display = 'block';
+    }
+    
+    // Actualizar accept del input
+    const accepts = {
+        xlsx: '.xlsx,.xls',
+        csv: '.csv',
+        json: '.json',
+        xml: '.xml'
+    };
+    document.getElementById('fileInput').accept = accepts[format];
+}
+
+async function handleFileUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    try {
+        let result;
+        
+        switch (selectedFormat) {
+            case 'xlsx':
+                result = await FormatLoaders.loadXLSX(file, true);
+                break;
+                
+            case 'csv':
+                const csvOptions = {
+                    delimiter: document.getElementById('csvDelimiter').value === 'auto' ? null : document.getElementById('csvDelimiter').value,
+                    encoding: document.getElementById('csvEncoding').value,
+                    hasHeader: document.getElementById('csvHasHeader').checked
+                };
+                result = await FormatLoaders.loadCSV(file, csvOptions);
+                break;
+                
+            case 'json':
+                result = await FormatLoaders.loadJSON(file);
+                break;
+                
+            case 'xml':
+                const xmlOptions = {
+                    rowPath: document.getElementById('xmlRowPath').value || null
+                };
+                result = await FormatLoaders.loadXML(file, xmlOptions);
+                break;
+        }
+        
+        // Actualizar estado global
+        state.excelColumns = result.columns;
+        state.excelData = result.data;
+        
+        // Continuar con el flujo normal
+        setupMapping();
+        
+    } catch (error) {
+        alert('❌ Error al procesar archivo:\n' + error.message);
+        console.error(error);
+    }
+}
+</script>

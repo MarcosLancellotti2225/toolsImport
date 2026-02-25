@@ -314,34 +314,6 @@ input[type="checkbox"] {
 .btn-primary:hover {
     animation: pulse 0.5s ease-in-out;
 }
-    </style>
-</head>
-<body>
-    <div class="container">
-<div class="header">
-    <h1>🚀 Generador CSV para CLI</h1>
-    <p>Convierte tus Excel al formato correcto para los comandos del sistema</p>
-</div>
-
-<div class="content">
-    <!-- PASO 1: Seleccionar Comando -->
-    <div class="step">
-        <div class="step-title">
-            <span class="step-number">1</span>
-            Selecciona el comando CLI
-        </div>
-        
-        <div class="command-grid" id="commandGrid"></div>
-        
-        <div id="columnsInfo" class="columns-info" style="display: none;">
-            <strong>Columnas requeridas:</strong>
-            <div id="requiredColumns"></div>
-        </div>
-    </div>
-
-    <!-- PASO 2: Crear o Cargar Excel -->
-    <div class="step">
-        <div class="step-title">
 /* ==========================================
    CONSTRUCTOR VISUAL v3.0 - ESTILOS
    ========================================== */

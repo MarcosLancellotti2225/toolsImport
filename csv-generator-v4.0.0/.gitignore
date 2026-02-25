@@ -1,0 +1,14 @@
+# Archivos innecesarios para GitHub Pages
+*.backup
+*-temp.*
+*-old.*
+cli-csv-generator.html
+images/
+VERSION.md
+
+# Node modules si los hubiera
+node_modules/
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
