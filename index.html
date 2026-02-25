@@ -174,6 +174,7 @@
                             <tr>
                                 <th>Columna Requerida (CSV)</th>
                                 <th>Columna de tu Excel</th>
+                                <th>Transformaciones</th>
                                 <th>Valor por defecto (opcional)</th>
                             </tr>
                         </thead>
@@ -184,6 +185,157 @@
                         <button class="btn btn-primary" id="applyMappingBtn">
                             ✅ Aplicar Mapeo y Continuar
                         </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MODAL DE TRANSFORMACIONES -->
+            <div id="transformModal" class="modal" style="display: none;">
+                <div class="modal-content" style="max-width: 800px;">
+                    <div class="modal-header">
+                        <h2>🔧 Transformar Columna: <span id="transformColumnName"></span></h2>
+                        <button class="modal-close" id="closeTransformModal">✖</button>
+                    </div>
+                    
+                    <div class="modal-body">
+                        <!-- Tabs de transformación -->
+                        <div class="transform-tabs">
+                            <button class="transform-tab active" data-tab="split">🔀 Dividir</button>
+                            <button class="transform-tab" data-tab="join">🔗 Unir</button>
+                            <button class="transform-tab" data-tab="text">✏️ Texto</button>
+                            <button class="transform-tab" data-tab="clean">🧹 Limpiar</button>
+                        </div>
+
+                        <!-- Panel DIVIDIR -->
+                        <div class="transform-panel active" id="panel-split">
+                            <h3>Dividir columna en múltiples partes</h3>
+                            
+                            <div class="form-group">
+                                <label>Separador:</label>
+                                <div class="separator-options">
+                                    <button class="sep-btn active" data-sep=" ">Espacio</button>
+                                    <button class="sep-btn" data-sep=",">Coma</button>
+                                    <button class="sep-btn" data-sep="-">Guión</button>
+                                    <button class="sep-btn" data-sep="_">Underscore</button>
+                                    <input type="text" id="customSep" placeholder="Otro..." style="width: 80px; margin-left: 10px;">
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" id="smartSplit"> 
+                                    División inteligente (detecta "Apellido, Nombre")
+                                </label>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Asignar partes a columnas:</label>
+                                <div id="splitParts"></div>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Preview (primeras 3 filas):</label>
+                                <div id="splitPreview" class="preview-box"></div>
+                            </div>
+
+                            <button class="btn btn-primary" id="applySplit">✅ Aplicar División</button>
+                        </div>
+
+                        <!-- Panel UNIR -->
+                        <div class="transform-panel" id="panel-join">
+                            <h3>Unir múltiples columnas</h3>
+                            
+                            <div class="form-group">
+                                <label>Selecciona columnas a unir:</label>
+                                <div id="joinColumns"></div>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Separador al unir:</label>
+                                <input type="text" id="joinSeparator" value=" " placeholder="Ej: espacio, coma, guión">
+                            </div>
+
+                            <div class="form-group">
+                                <label>Preview:</label>
+                                <div id="joinPreview" class="preview-box"></div>
+                            </div>
+
+                            <button class="btn btn-primary" id="applyJoin">✅ Aplicar Unión</button>
+                        </div>
+
+                        <!-- Panel TEXTO -->
+                        <div class="transform-panel" id="panel-text">
+                            <h3>Transformar formato de texto</h3>
+                            
+                            <div class="transform-options">
+                                <button class="transform-option" data-transform="uppercase">
+                                    <strong>MAYÚSCULAS</strong>
+                                    <small>juan pérez → JUAN PÉREZ</small>
+                                </button>
+                                
+                                <button class="transform-option" data-transform="lowercase">
+                                    <strong>minúsculas</strong>
+                                    <small>JUAN PÉREZ → juan pérez</small>
+                                </button>
+                                
+                                <button class="transform-option" data-transform="capitalize">
+                                    <strong>Título</strong>
+                                    <small>juan pérez → Juan Pérez</small>
+                                </button>
+                                
+                                <button class="transform-option" data-transform="firstcap">
+                                    <strong>Primera mayúscula</strong>
+                                    <small>juan pérez → Juan pérez</small>
+                                </button>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Preview:</label>
+                                <div id="textPreview" class="preview-box"></div>
+                            </div>
+
+                            <button class="btn btn-primary" id="applyText">✅ Aplicar Transformación</button>
+                        </div>
+
+                        <!-- Panel LIMPIAR -->
+                        <div class="transform-panel" id="panel-clean">
+                            <h3>Limpiar y normalizar datos</h3>
+                            
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" id="trimSpaces" checked> 
+                                    Eliminar espacios al inicio y final
+                                </label>
+                            </div>
+
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" id="removeExtraSpaces" checked> 
+                                    Convertir múltiples espacios en uno solo
+                                </label>
+                            </div>
+
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" id="removeSpecialChars"> 
+                                    Eliminar caracteres especiales
+                                </label>
+                            </div>
+
+                            <div class="form-group">
+                                <label>
+                                    <input type="checkbox" id="removeAccents"> 
+                                    Eliminar acentos (á→a, é→e, etc.)
+                                </label>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Preview:</label>
+                                <div id="cleanPreview" class="preview-box"></div>
+                            </div>
+
+                            <button class="btn btn-primary" id="applyClean">✅ Aplicar Limpieza</button>
+                        </div>
                     </div>
                 </div>
             </div>

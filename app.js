@@ -115,7 +115,7 @@
             
             // Cargar logos desde la carpeta images
             ivSignImg.src = 'images/ivsign-logo.png';
-            ivNeosImg.src = 'images/ivneos-logo(1).png';
+            ivNeosImg.src = 'images/ivneos-logo.png';
             
             ivSignImg.style.width = '100%';
             ivSignImg.style.maxWidth = '350px';
@@ -448,6 +448,12 @@
                             ).join('')}
                         </select>
                     </td>
+                    <td style="text-align: center;">
+                        <button class="transform-btn" onclick="openTransformModal('${requiredCol}', '${matchedCol || ''}')">
+                            🔧 Transformar
+                        </button>
+                        <div id="transform-status-${requiredCol}" style="margin-top: 5px; font-size: 0.85em; color: #28a745;"></div>
+                    </td>
                     <td>
                         <input type="text" 
                                class="default-value" 
@@ -692,3 +698,521 @@
 
         // Inicializar
         loadLogos();
+
+        // ==========================================
+        // SISTEMA DE TRANSFORMACIONES
+        // ==========================================
+
+        let currentTransformColumn = null;
+        let transformations = {}; // Guarda las transformaciones aplicadas
+
+        // Abrir modal de transformaciones
+        function openTransformModal(columnName, excelColumn) {
+            currentTransformColumn = columnName;
+            document.getElementById('transformColumnName').textContent = columnName;
+            document.getElementById('transformModal').style.display = 'flex';
+            
+            // Inicializar paneles
+            initializeTransformModal();
+            
+            // Cargar preview inicial
+            updateSplitPreview();
+        }
+
+        // Cerrar modal
+        document.getElementById('closeTransformModal').addEventListener('click', () => {
+            document.getElementById('transformModal').style.display = 'none';
+        });
+
+        // Cambiar tabs
+        document.querySelectorAll('.transform-tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                // Remover active de todos
+                document.querySelectorAll('.transform-tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.transform-panel').forEach(p => p.classList.remove('active'));
+                
+                // Activar el seleccionado
+                this.classList.add('active');
+                document.getElementById('panel-' + this.dataset.tab).classList.add('active');
+            });
+        });
+
+        // ==========================================
+        // DIVIDIR COLUMNA
+        // ==========================================
+
+        // Cambiar separador
+        document.querySelectorAll('.sep-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.sep-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                updateSplitPreview();
+            });
+        });
+
+        document.getElementById('customSep').addEventListener('input', updateSplitPreview);
+        document.getElementById('smartSplit').addEventListener('change', updateSplitPreview);
+
+        function updateSplitPreview() {
+            const separator = getSelectedSeparator();
+            const smart = document.getElementById('smartSplit').checked;
+            
+            // Obtener datos de muestra (primeras 3 filas)
+            const sampleData = getSampleDataForColumn(currentTransformColumn);
+            
+            if (!sampleData || sampleData.length === 0) return;
+
+            // Dividir datos
+            const split = sampleData.map(value => {
+                if (!value) return [];
+                
+                if (smart) {
+                    // División inteligente: detecta "Apellido, Nombre"
+                    if (value.includes(',')) {
+                        const parts = value.split(',').map(p => p.trim());
+                        return [parts[1] || '', parts[0] || '']; // Invierte el orden
+                    }
+                }
+                
+                return value.split(separator);
+            });
+
+            // Determinar número máximo de partes
+            const maxParts = Math.max(...split.map(s => s.length));
+
+            // Crear opciones de asignación
+            const splitPartsDiv = document.getElementById('splitParts');
+            const requiredColumns = COMMAND_TEMPLATES[state.selectedCommand].columns;
+            
+            splitPartsDiv.innerHTML = '';
+            for (let i = 0; i < maxParts; i++) {
+                const div = document.createElement('div');
+                div.className = 'part-assignment';
+                div.innerHTML = `
+                    <strong>Parte ${i + 1}:</strong>
+                    <select class="part-select" data-part="${i}">
+                        <option value="">-- No usar --</option>
+                        ${requiredColumns.map(col => 
+                            `<option value="${col}">${col}</option>`
+                        ).join('')}
+                    </select>
+                `;
+                splitPartsDiv.appendChild(div);
+            }
+
+            // Mostrar preview
+            const previewDiv = document.getElementById('splitPreview');
+            previewDiv.innerHTML = split.slice(0, 3).map((parts, idx) => `
+                <div class="preview-row">
+                    <span class="before">${sampleData[idx]}</span> 
+                    → 
+                    ${parts.map((p, i) => `<span class="after">Parte ${i+1}: "${p}"</span>`).join(' | ')}
+                </div>
+            `).join('');
+        }
+
+        function getSelectedSeparator() {
+            const custom = document.getElementById('customSep').value;
+            if (custom) return custom;
+            
+            const activeBtn = document.querySelector('.sep-btn.active');
+            return activeBtn ? activeBtn.dataset.sep : ' ';
+        }
+
+        function getSampleDataForColumn(columnName) {
+            if (!state.excelData || state.excelData.length === 0) return [];
+            
+            const mappedColumn = state.mapping[columnName];
+            if (!mappedColumn) return [];
+            
+            const columnIndex = state.excelColumns.indexOf(mappedColumn);
+            if (columnIndex === -1) return [];
+            
+            return state.excelData.slice(0, 3).map(row => row[columnIndex]);
+        }
+
+        // Aplicar división
+        document.getElementById('applySplit').addEventListener('click', () => {
+            const separator = getSelectedSeparator();
+            const smart = document.getElementById('smartSplit').checked;
+            const assignments = {};
+            
+            document.querySelectorAll('.part-select').forEach(select => {
+                const part = select.dataset.part;
+                const column = select.value;
+                if (column) {
+                    assignments[part] = column;
+                }
+            });
+
+            if (Object.keys(assignments).length === 0) {
+                alert('Debes asignar al menos una parte a una columna');
+                return;
+            }
+
+            // Guardar transformación
+            transformations[currentTransformColumn] = {
+                type: 'split',
+                separator,
+                smart,
+                assignments
+            };
+
+            // Aplicar transformación a los datos
+            applySplitTransformation(currentTransformColumn);
+            
+            document.getElementById('transformModal').style.display = 'none';
+            alert('✅ División aplicada correctamente');
+        });
+
+        function applySplitTransformation(columnName) {
+            const transform = transformations[columnName];
+            if (!transform || transform.type !== 'split') return;
+
+            const mappedColumn = state.mapping[columnName];
+            if (!mappedColumn) return;
+
+            const columnIndex = state.excelColumns.indexOf(mappedColumn);
+            if (columnIndex === -1) return;
+
+            // Dividir cada fila
+            state.excelData = state.excelData.map(row => {
+                const value = row[columnIndex] || '';
+                let parts = [];
+
+                if (transform.smart && value.includes(',')) {
+                    const split = value.split(',').map(p => p.trim());
+                    parts = [split[1] || '', split[0] || ''];
+                } else {
+                    parts = value.split(transform.separator);
+                }
+
+                // Crear nuevas columnas según las asignaciones
+                const newRow = [...row];
+                Object.entries(transform.assignments).forEach(([partIdx, targetColumn]) => {
+                    const partValue = parts[parseInt(partIdx)] || '';
+                    // Actualizar mapeo si es necesario
+                    if (!state.mapping[targetColumn]) {
+                        state.mapping[targetColumn] = mappedColumn + '_part' + partIdx;
+                    }
+                    // Agregar o actualizar columna
+                    newRow.push(partValue);
+                });
+
+                return newRow;
+            });
+
+            // Actualizar columnas disponibles
+            Object.entries(transform.assignments).forEach(([partIdx, targetColumn]) => {
+                if (!state.excelColumns.includes(mappedColumn + '_part' + partIdx)) {
+                    state.excelColumns.push(mappedColumn + '_part' + partIdx);
+                }
+            });
+        }
+
+        // ==========================================
+        // UNIR COLUMNAS
+        // ==========================================
+
+        function updateJoinPanel() {
+            const joinColumnsDiv = document.getElementById('joinColumns');
+            joinColumnsDiv.innerHTML = '';
+
+            state.excelColumns.forEach(col => {
+                const div = document.createElement('div');
+                div.className = 'join-column';
+                div.innerHTML = `
+                    <input type="checkbox" id="join_${col}" value="${col}">
+                    <label for="join_${col}">${col}</label>
+                `;
+                joinColumnsDiv.appendChild(div);
+            });
+
+            // Preview cuando cambian checkboxes
+            joinColumnsDiv.addEventListener('change', updateJoinPreview);
+            document.getElementById('joinSeparator').addEventListener('input', updateJoinPreview);
+        }
+
+        function updateJoinPreview() {
+            const selected = Array.from(document.querySelectorAll('#joinColumns input:checked'))
+                .map(cb => cb.value);
+            
+            const separator = document.getElementById('joinSeparator').value || ' ';
+            
+            if (selected.length < 2) {
+                document.getElementById('joinPreview').innerHTML = 
+                    '<p style="color: #999;">Selecciona al menos 2 columnas para unir</p>';
+                return;
+            }
+
+            // Obtener datos de muestra
+            const samples = selected.map(col => getSampleDataForColumn(col));
+            const combined = samples[0].map((_, idx) => 
+                selected.map((_, colIdx) => samples[colIdx][idx] || '').join(separator)
+            );
+
+            document.getElementById('joinPreview').innerHTML = combined.slice(0, 3).map((val, idx) => `
+                <div class="preview-row">
+                    ${selected.map((col, i) => `<span class="before">${samples[i][idx] || ''}</span>`).join(' + ')}
+                    <br>→ <span class="after">"${val}"</span>
+                </div>
+            `).join('');
+        }
+
+        document.getElementById('applyJoin').addEventListener('click', () => {
+            const selected = Array.from(document.querySelectorAll('#joinColumns input:checked'))
+                .map(cb => cb.value);
+            
+            const separator = document.getElementById('joinSeparator').value || ' ';
+
+            if (selected.length < 2) {
+                alert('Debes seleccionar al menos 2 columnas para unir');
+                return;
+            }
+
+            // Guardar transformación
+            transformations[currentTransformColumn] = {
+                type: 'join',
+                columns: selected,
+                separator
+            };
+
+            applyJoinTransformation(currentTransformColumn);
+            
+            document.getElementById('transformModal').style.display = 'none';
+            alert('✅ Unión aplicada correctamente');
+        });
+
+        function applyJoinTransformation(columnName) {
+            const transform = transformations[columnName];
+            if (!transform || transform.type !== 'join') return;
+
+            const indices = transform.columns.map(col => state.excelColumns.indexOf(col));
+            
+            state.excelData = state.excelData.map(row => {
+                const values = indices.map(idx => row[idx] || '');
+                const joined = values.join(transform.separator);
+                
+                const newRow = [...row];
+                newRow.push(joined);
+                return newRow;
+            });
+
+            // Agregar nueva columna
+            const newColumnName = transform.columns.join('_');
+            state.excelColumns.push(newColumnName);
+            state.mapping[columnName] = newColumnName;
+        }
+
+        // ==========================================
+        // TRANSFORMAR TEXTO
+        // ==========================================
+
+        let selectedTextTransform = null;
+
+        document.querySelectorAll('.transform-option').forEach(option => {
+            option.addEventListener('click', function() {
+                document.querySelectorAll('.transform-option').forEach(o => o.classList.remove('selected'));
+                this.classList.add('selected');
+                selectedTextTransform = this.dataset.transform;
+                updateTextPreview();
+            });
+        });
+
+        function updateTextPreview() {
+            if (!selectedTextTransform) return;
+
+            const sampleData = getSampleDataForColumn(currentTransformColumn);
+            const transformed = sampleData.map(value => applyTextTransform(value, selectedTextTransform));
+
+            document.getElementById('textPreview').innerHTML = transformed.slice(0, 3).map((val, idx) => `
+                <div class="preview-row">
+                    <span class="before">${sampleData[idx]}</span>
+                    <br>→ <span class="after">${val}</span>
+                </div>
+            `).join('');
+        }
+
+        function applyTextTransform(text, transform) {
+            if (!text) return text;
+
+            switch(transform) {
+                case 'uppercase':
+                    return text.toUpperCase();
+                case 'lowercase':
+                    return text.toLowerCase();
+                case 'capitalize':
+                    return text.split(' ').map(word => 
+                        word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+                    ).join(' ');
+                case 'firstcap':
+                    return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
+                default:
+                    return text;
+            }
+        }
+
+        document.getElementById('applyText').addEventListener('click', () => {
+            if (!selectedTextTransform) {
+                alert('Selecciona una transformación primero');
+                return;
+            }
+
+            transformations[currentTransformColumn] = {
+                type: 'text',
+                transform: selectedTextTransform
+            };
+
+            applyTextTransformToData(currentTransformColumn);
+            
+            document.getElementById('transformModal').style.display = 'none';
+            alert('✅ Transformación aplicada correctamente');
+        });
+
+        function applyTextTransformToData(columnName) {
+            const transform = transformations[columnName];
+            if (!transform || transform.type !== 'text') return;
+
+            const mappedColumn = state.mapping[columnName];
+            if (!mappedColumn) return;
+
+            const columnIndex = state.excelColumns.indexOf(mappedColumn);
+            if (columnIndex === -1) return;
+
+            state.excelData = state.excelData.map(row => {
+                const newRow = [...row];
+                newRow[columnIndex] = applyTextTransform(row[columnIndex], transform.transform);
+                return newRow;
+            });
+        }
+
+        // ==========================================
+        // LIMPIAR DATOS
+        // ==========================================
+
+        function updateCleanPreview() {
+            const trim = document.getElementById('trimSpaces').checked;
+            const extraSpaces = document.getElementById('removeExtraSpaces').checked;
+            const special = document.getElementById('removeSpecialChars').checked;
+            const accents = document.getElementById('removeAccents').checked;
+
+            const sampleData = getSampleDataForColumn(currentTransformColumn);
+            const cleaned = sampleData.map(value => 
+                cleanText(value, {trim, extraSpaces, special, accents})
+            );
+
+            document.getElementById('cleanPreview').innerHTML = cleaned.slice(0, 3).map((val, idx) => `
+                <div class="preview-row">
+                    <span class="before">"${sampleData[idx]}"</span>
+                    <br>→ <span class="after">"${val}"</span>
+                </div>
+            `).join('');
+        }
+
+        function cleanText(text, options) {
+            if (!text) return text;
+            let result = text;
+
+            if (options.trim) {
+                result = result.trim();
+            }
+
+            if (options.extraSpaces) {
+                result = result.replace(/\s+/g, ' ');
+            }
+
+            if (options.special) {
+                result = result.replace(/[^a-zA-Z0-9\s]/g, '');
+            }
+
+            if (options.accents) {
+                const accentsMap = {
+                    'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ú': 'u',
+                    'Á': 'A', 'É': 'E', 'Í': 'I', 'Ó': 'O', 'Ú': 'U',
+                    'ñ': 'n', 'Ñ': 'N', 'ü': 'u', 'Ü': 'U'
+                };
+                result = result.replace(/[áéíóúÁÉÍÓÚñÑüÜ]/g, m => accentsMap[m] || m);
+            }
+
+            return result;
+        }
+
+        document.querySelectorAll('#panel-clean input[type="checkbox"]').forEach(cb => {
+            cb.addEventListener('change', updateCleanPreview);
+        });
+
+        document.getElementById('applyClean').addEventListener('click', () => {
+            transformations[currentTransformColumn] = {
+                type: 'clean',
+                options: {
+                    trim: document.getElementById('trimSpaces').checked,
+                    extraSpaces: document.getElementById('removeExtraSpaces').checked,
+                    special: document.getElementById('removeSpecialChars').checked,
+                    accents: document.getElementById('removeAccents').checked
+                }
+            };
+
+            applyCleanTransformToData(currentTransformColumn);
+            
+            document.getElementById('transformModal').style.display = 'none';
+            alert('✅ Limpieza aplicada correctamente');
+        });
+
+        function applyCleanTransformToData(columnName) {
+            const transform = transformations[columnName];
+            if (!transform || transform.type !== 'clean') return;
+
+            const mappedColumn = state.mapping[columnName];
+            if (!mappedColumn) return;
+
+            const columnIndex = state.excelColumns.indexOf(mappedColumn);
+            if (columnIndex === -1) return;
+
+            state.excelData = state.excelData.map(row => {
+                const newRow = [...row];
+                newRow[columnIndex] = cleanText(row[columnIndex], transform.options);
+                return newRow;
+            });
+        }
+
+        // Actualizar modal cuando se abre
+        function initializeTransformModal() {
+            // Actualizar panels según el producto y comando
+            updateJoinPanel();
+        }
+
+        // Llamar cuando se haga click en transformar
+        document.addEventListener('DOMContentLoaded', () => {
+            // Listeners ya están configurados arriba
+        });
+
+        // Mostrar estado de transformaciones aplicadas
+        function updateTransformStatus(columnName) {
+            const statusDiv = document.getElementById(`transform-status-${columnName}`);
+            if (!statusDiv) return;
+
+            const transform = transformations[columnName];
+            if (!transform) {
+                statusDiv.innerHTML = '';
+                return;
+            }
+
+            let statusText = '';
+            switch(transform.type) {
+                case 'split':
+                    statusText = `✅ Dividida (${Object.keys(transform.assignments).length} partes)`;
+                    break;
+                case 'join':
+                    statusText = `✅ Unida (${transform.columns.length} columnas)`;
+                    break;
+                case 'text':
+                    statusText = `✅ Formato: ${transform.transform}`;
+                    break;
+                case 'clean':
+                    const opts = Object.entries(transform.options).filter(([k,v]) => v).map(([k]) => k);
+                    statusText = `✅ Limpieza (${opts.length} opciones)`;
+                    break;
+            }
+
+            statusDiv.innerHTML = statusText;
+        }
