@@ -269,113 +269,6 @@
             margin-top: 20px;
         }
 
-        .product-card {
-            background: white;
-            padding: 40px 30px;
-            border-radius: 15px;
-            border: 3px solid #e0e0e0;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-align: center;
-        }
-
-        .product-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-            border-color: #667eea;
-        }
-
-        .product-card.selected {
-            border-color: #667eea;
-            background: #f8f9ff;
-            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.3);
-        }
-
-        .product-icon {
-            min-height: 100px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 20px;
-        }
-
-        .icon-cloud {
-            font-size: 4em;
-            animation: float 3s ease-in-out infinite;
-        }
-
-        @keyframes float {
-            0%, 100% { transform: translateY(0px); }
-            50% { transform: translateY(-10px); }
-        }
-
-        .icon-envelopes {
-            position: relative;
-            width: 120px;
-            height: 80px;
-        }
-
-        .envelope {
-            position: absolute;
-            font-size: 2.5em;
-            transition: all 0.3s ease;
-        }
-
-        .env-1 {
-            left: 0;
-            top: 0;
-            color: #f59e0b;
-        }
-
-        .env-2 {
-            left: 35px;
-            top: 15px;
-            color: #84cc16;
-        }
-
-        .env-3 {
-            left: 70px;
-            top: 0;
-            color: #3b82f6;
-        }
-
-        .product-card:hover .envelope {
-            transform: scale(1.1);
-        }
-
-        .product-card:hover .env-1 {
-            transform: translateX(-5px) scale(1.1);
-        }
-
-        .product-card:hover .env-2 {
-            transform: translateY(-5px) scale(1.1);
-        }
-
-        .product-card:hover .env-3 {
-            transform: translateX(5px) scale(1.1);
-        }
-
-        .product-card h3 {
-            color: #2d3748;
-            font-size: 2em;
-            margin-bottom: 8px;
-            font-weight: 700;
-        }
-
-        .product-subtitle {
-            color: #667eea;
-            font-size: 0.9em;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 5px;
-        }
-
-        .product-desc {
-            color: #718096;
-            font-size: 1em;
-        }
-
         .header-option {
             transition: all 0.3s ease;
         }
@@ -421,8 +314,36 @@
         .btn-primary:hover {
             animation: pulse 0.5s ease-in-out;
         }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Generador CSV para CLI</h1>
+            <p>Convierte tus Excel al formato correcto para los comandos del sistema</p>
+        </div>
 
-/* Modal de Transformaciones */
+        <div class="content">
+            <!-- PASO 1: Seleccionar Comando -->
+            <div class="step">
+                <div class="step-title">
+                    <span class="step-number">1</span>
+                    Selecciona el comando CLI
+                </div>
+                
+                <div class="command-grid" id="commandGrid"></div>
+                
+                <div id="columnsInfo" class="columns-info" style="display: none;">
+                    <strong>Columnas requeridas:</strong>
+                    <div id="requiredColumns"></div>
+                </div>
+            </div>
+
+            <!-- PASO 2: Crear o Cargar Excel -->
+            <div class="step">
+                <div class="step-title">
+
+/* Modal Simple para Split */
 .modal {
     position: fixed;
     top: 0;
@@ -443,6 +364,7 @@
     max-height: 90vh;
     overflow-y: auto;
     box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    width: 100%;
 }
 
 .modal-header {
@@ -457,7 +379,7 @@
 
 .modal-header h2 {
     margin: 0;
-    font-size: 1.5em;
+    font-size: 1.3em;
 }
 
 .modal-close {
@@ -484,207 +406,13 @@
     padding: 30px;
 }
 
-.transform-tabs {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 30px;
-    border-bottom: 2px solid #e0e0e0;
-}
-
-.transform-tab {
-    padding: 12px 20px;
-    background: none;
-    border: none;
-    border-bottom: 3px solid transparent;
-    cursor: pointer;
-    font-size: 1em;
-    color: #666;
-    transition: all 0.3s;
-}
-
-.transform-tab:hover {
-    color: #667eea;
-}
-
-.transform-tab.active {
-    color: #667eea;
-    border-bottom-color: #667eea;
-    font-weight: 600;
-}
-
-.transform-panel {
-    display: none;
-}
-
-.transform-panel.active {
-    display: block;
-}
-
 .form-group {
-    margin-bottom: 25px;
+    margin-bottom: 20px;
 }
 
 .form-group label {
     display: block;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
     font-weight: 600;
     color: #333;
-}
-
-.separator-options {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-}
-
-.sep-btn {
-    padding: 10px 20px;
-    border: 2px solid #e0e0e0;
-    background: white;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.3s;
-}
-
-.sep-btn:hover {
-    border-color: #667eea;
-    color: #667eea;
-}
-
-.sep-btn.active {
-    border-color: #667eea;
-    background: #667eea;
-    color: white;
-}
-
-.preview-box {
-    background: #f8f9ff;
-    padding: 15px;
-    border-radius: 8px;
-    border: 2px solid #667eea;
-    font-family: monospace;
-    font-size: 0.9em;
-    max-height: 200px;
-    overflow-y: auto;
-}
-
-.preview-box .preview-row {
-    padding: 8px;
-    border-bottom: 1px solid #e0e0e0;
-}
-
-.preview-box .preview-row:last-child {
-    border-bottom: none;
-}
-
-.preview-box .before {
-    color: #999;
-    text-decoration: line-through;
-}
-
-.preview-box .after {
-    color: #28a745;
-    font-weight: 600;
-}
-
-.transform-options {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 15px;
-    margin-bottom: 20px;
-}
-
-.transform-option {
-    padding: 20px;
-    border: 2px solid #e0e0e0;
-    background: white;
-    border-radius: 10px;
-    cursor: pointer;
-    transition: all 0.3s;
-    text-align: left;
-}
-
-.transform-option:hover {
-    border-color: #667eea;
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
-}
-
-.transform-option.selected {
-    border-color: #667eea;
-    background: #f8f9ff;
-}
-
-.transform-option strong {
-    display: block;
-    margin-bottom: 8px;
-    color: #667eea;
-    font-size: 1.1em;
-}
-
-.transform-option small {
-    display: block;
-    color: #666;
-    font-size: 0.85em;
-}
-
-.transform-btn {
-    padding: 8px 15px;
-    background: #667eea;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 0.9em;
-    transition: all 0.3s;
-}
-
-.transform-btn:hover {
-    background: #5568d3;
-    transform: translateY(-2px);
-}
-
-.transform-btn:active {
-    transform: translateY(0);
-}
-
-#splitParts, #joinColumns {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.part-assignment {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px;
-    background: #f8f9ff;
-    border-radius: 8px;
-}
-
-.part-assignment select {
-    flex: 1;
-    padding: 8px;
-    border: 2px solid #667eea;
-    border-radius: 5px;
-}
-
-.join-column {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px;
-    background: #f8f9ff;
-    border-radius: 8px;
-}
-
-.join-column input[type="checkbox"] {
-    width: 20px;
-    height: 20px;
-}
-
-.join-column label {
-    flex: 1;
-    margin: 0;
 }
