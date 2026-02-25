@@ -234,6 +234,7 @@ const COMMAND_TEMPLATES = {
 
         // Procesar archivo
         let rawExcelData = null; // Para guardar los datos sin procesar
+        let currentWorkbook = null; // Para guardar el workbook
 
         function handleFile(file) {
             if (!state.selectedCommand) {
@@ -247,18 +248,15 @@ const COMMAND_TEMPLATES = {
                 try {
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, { type: 'array' });
-                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    currentWorkbook = workbook;
                     
-                    // Leer como array de arrays para tener control total
-                    rawExcelData = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
-                    
-                    if (rawExcelData.length === 0) {
-                        alert('⚠️ El archivo está vacío');
-                        return;
+                    // Si hay múltiples hojas, mostrar selector
+                    if (workbook.SheetNames.length > 1) {
+                        showSheetSelector(workbook);
+                    } else {
+                        // Solo una hoja, cargarla directamente
+                        loadSheet(workbook, workbook.SheetNames[0]);
                     }
-
-                    // Mostrar opción de header
-                    document.getElementById('headerOption').style.display = 'block';
                     
                 } catch (error) {
                     alert('❌ Error al leer el archivo: ' + error.message);
@@ -267,6 +265,91 @@ const COMMAND_TEMPLATES = {
             
             reader.readAsArrayBuffer(file);
         }
+        
+        // Mostrar selector de hojas
+        function showSheetSelector(workbook) {
+            const sheetSelectorHTML = `
+                <div style="margin: 20px 0; padding: 20px; background: #f8f9ff; border: 2px solid #667eea; border-radius: 10px;">
+                    <h4 style="color: #667eea; margin-bottom: 15px;">
+                        📑 Este archivo tiene ${workbook.SheetNames.length} hojas
+                    </h4>
+                    <p style="margin-bottom: 15px; color: #666;">
+                        Selecciona qué hoja quieres procesar:
+                    </p>
+                    <select id="sheetSelector" style="width: 100%; padding: 12px; border: 2px solid #667eea; border-radius: 8px; font-size: 1em; margin-bottom: 15px;">
+                        ${workbook.SheetNames.map((name, idx) => 
+                            `<option value="${idx}">${name}</option>`
+                        ).join('')}
+                    </select>
+                    <button id="loadSheetBtn" class="btn btn-primary" style="width: 100%;">
+                        ✅ Cargar Hoja Seleccionada
+                    </button>
+                </div>
+            `;
+            
+            // Mostrar selector antes de las opciones de header
+            const headerOption = document.getElementById('headerOption');
+            headerOption.insertAdjacentHTML('beforebegin', `<div id="sheetSelectorDiv">${sheetSelectorHTML}</div>`);
+            
+            // Event listener para cargar hoja
+            document.getElementById('loadSheetBtn').onclick = () => {
+                const selectedIndex = document.getElementById('sheetSelector').value;
+                const sheetName = workbook.SheetNames[selectedIndex];
+                loadSheet(workbook, sheetName);
+                
+                // Ocultar selector después de seleccionar
+                document.getElementById('sheetSelectorDiv').style.display = 'none';
+            };
+        }
+        
+        // Cargar una hoja específica
+        function loadSheet(workbook, sheetName) {
+            const sheet = workbook.Sheets[sheetName];
+            
+            // Leer como array de arrays para tener control total
+            rawExcelData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+            
+            if (rawExcelData.length === 0) {
+                alert('⚠️ La hoja está vacía');
+                return;
+            }
+
+            // Mostrar opción de header
+            document.getElementById('headerOption').style.display = 'block';
+            
+            // Si hay múltiples hojas, agregar botón para cambiar
+            if (workbook.SheetNames.length > 1) {
+                // Remover botón anterior si existe
+                const oldChangeBtn = document.getElementById('changeSheetBtn');
+                if (oldChangeBtn) oldChangeBtn.remove();
+                
+                // Agregar nuevo botón
+                const changeSheetHTML = `
+                    <div id="changeSheetBtn" style="margin: 15px 0; text-align: center;">
+                        <button class="btn btn-secondary" onclick="showSheetSelectorAgain()" style="padding: 10px 20px;">
+                            📑 Cambiar de Hoja (Actual: ${sheetName})
+                        </button>
+                    </div>
+                `;
+                document.getElementById('headerOption').insertAdjacentHTML('afterbegin', changeSheetHTML);
+            }
+            
+            // Scroll suave al selector de header
+            document.getElementById('headerOption').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        
+        // Función para volver a mostrar selector de hojas
+        window.showSheetSelectorAgain = function() {
+            if (currentWorkbook) {
+                // Limpiar y resetear
+                document.getElementById('headerOption').style.display = 'none';
+                const oldSelector = document.getElementById('sheetSelectorDiv');
+                if (oldSelector) oldSelector.remove();
+                
+                // Mostrar selector nuevamente
+                showSheetSelector(currentWorkbook);
+            }
+        };
 
         // Procesar archivo según opción de header
         document.getElementById('processFileBtn').onclick = () => {
@@ -435,18 +518,9 @@ const COMMAND_TEMPLATES = {
                 input.addEventListener('input', updateMapping);
             });
 
-            // Configurar botones
-            const autoMappingSuccess = autoMappedCount === template.columns.length;
-            
-            document.getElementById('autoProcessBtn').onclick = () => {
-                updateMapping();
-                generatePreview();
-                alert(`⚡ Auto-procesamiento completado!\n\n✅ ${autoMappedCount}/${template.columns.length} columnas mapeadas automáticamente\n\nRevisa el preview y descarga tu CSV.`);
-            };
-
+            // Configurar botón de mapeo manual
             document.getElementById('manualMappingBtn').onclick = () => {
                 document.getElementById('mappingDetails').style.display = 'block';
-                document.getElementById('autoProcessBtn').style.display = 'none';
                 document.getElementById('manualMappingBtn').style.display = 'none';
             };
 
@@ -454,16 +528,6 @@ const COMMAND_TEMPLATES = {
                 updateMapping();
                 generatePreview();
             };
-
-            // Si el mapeo automático es perfecto, sugerirlo
-            if (autoMappingSuccess) {
-                setTimeout(() => {
-                    if (confirm(`🎯 ¡Mapeo automático perfecto!\n\n✅ Todas las columnas (${autoMappedCount}) fueron mapeadas correctamente.\n\n¿Quieres procesar directamente?`)) {
-                        updateMapping();
-                        generatePreview();
-                    }
-                }, 500);
-            }
 
             // Generar preview inicial
             updateMapping();
