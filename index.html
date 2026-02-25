@@ -160,7 +160,7 @@
                                 <option value="|">| (pipe)</option>
                             </select>
                         </div>
-                        
+
                         <div>
                             <label style="display: block; margin-bottom: 5px; font-weight: 600;">Encoding:</label>
                             <select id="csvEncoding" style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ddd;">
@@ -170,6 +170,7 @@
                             </select>
                         </div>
                     </div>
+                    <input type="checkbox" id="csvHasHeader" checked style="display:none">
                 </div>
                 
                 <!-- Opciones XML -->
@@ -267,6 +268,8 @@
                 <div class="info-box">
                     💡 <strong>Mapeo automático detectado:</strong> Revisa que las columnas estén bien emparejadas.
                 </div>
+
+                <div id="mappingStatus" style="margin: 15px 0; padding: 15px; background: #f8f9ff; border-radius: 8px; border: 1px solid #e0e0e0;"></div>
 
                 <div class="button-group" style="margin: 20px 0;">
                     <button class="btn btn-primary" id="manualMappingBtn" style="width: 100%; font-size: 1.1em;">
@@ -370,19 +373,19 @@
                 
                 <!-- Botones rápidos -->
                 <div style="display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap;">
-                    <button onclick="setSeparator(', ')" class="btn btn-primary" style="padding: 8px 15px; font-size: 0.9em; background: #28a745;">
+                    <button onclick="setDivisionSeparator(', ')" class="btn btn-primary" style="padding: 8px 15px; font-size: 0.9em; background: #28a745;">
                         , (coma + espacio)
                     </button>
-                    <button onclick="setSeparator(',')" class="btn btn-primary" style="padding: 8px 15px; font-size: 0.9em; background: #6c757d;">
+                    <button onclick="setDivisionSeparator(',')" class="btn btn-primary" style="padding: 8px 15px; font-size: 0.9em; background: #6c757d;">
                         , (solo coma)
                     </button>
-                    <button onclick="setSeparator(' ')" class="btn btn-primary" style="padding: 8px 15px; font-size: 0.9em; background: #6c757d;">
+                    <button onclick="setDivisionSeparator(' ')" class="btn btn-primary" style="padding: 8px 15px; font-size: 0.9em; background: #6c757d;">
                         (espacio)
                     </button>
-                    <button onclick="setSeparator(';')" class="btn btn-primary" style="padding: 8px 15px; font-size: 0.9em; background: #6c757d;">
+                    <button onclick="setDivisionSeparator(';')" class="btn btn-primary" style="padding: 8px 15px; font-size: 0.9em; background: #6c757d;">
                         ; (punto y coma)
                     </button>
-                    <button onclick="setSeparator('-')" class="btn btn-primary" style="padding: 8px 15px; font-size: 0.9em; background: #6c757d;">
+                    <button onclick="setDivisionSeparator('-')" class="btn btn-primary" style="padding: 8px 15px; font-size: 0.9em; background: #6c757d;">
                         - (guión)
                     </button>
                 </div>
@@ -392,7 +395,7 @@
                     id="separatorInput" 
                     placeholder="O escribe tu propio separador..."
                     style="width: 100%; padding: 12px; border: 2px solid #667eea; border-radius: 8px; font-size: 1.1em; font-family: monospace;"
-                    oninput="updateLivePreview()">
+                    oninput="updateDivisionPreview()">
                 <small style="color: #666; display: block; margin-top: 5px;">
                     💡 <strong>Tip:</strong> Para nombres como "APELLIDO, NOMBRE" usa <code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px;">, </code> (coma + espacio)
                 </small>
