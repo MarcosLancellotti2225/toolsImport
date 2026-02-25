@@ -271,7 +271,7 @@
 
         .product-card {
             background: white;
-            padding: 30px;
+            padding: 40px 30px;
             border-radius: 15px;
             border: 3px solid #e0e0e0;
             cursor: pointer;
@@ -291,20 +291,89 @@
             box-shadow: 0 5px 20px rgba(102, 126, 234, 0.3);
         }
 
-        .product-logo {
-            min-height: 120px;
+        .product-icon {
+            min-height: 100px;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 30px;
+            margin-bottom: 20px;
         }
 
-        .product-logo img {
-            max-width: 350px;
-            max-height: 120px;
-            width: auto;
-            height: auto;
-            object-fit: contain;
+        .icon-cloud {
+            font-size: 4em;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .icon-envelopes {
+            position: relative;
+            width: 120px;
+            height: 80px;
+        }
+
+        .envelope {
+            position: absolute;
+            font-size: 2.5em;
+            transition: all 0.3s ease;
+        }
+
+        .env-1 {
+            left: 0;
+            top: 0;
+            color: #f59e0b;
+        }
+
+        .env-2 {
+            left: 35px;
+            top: 15px;
+            color: #84cc16;
+        }
+
+        .env-3 {
+            left: 70px;
+            top: 0;
+            color: #3b82f6;
+        }
+
+        .product-card:hover .envelope {
+            transform: scale(1.1);
+        }
+
+        .product-card:hover .env-1 {
+            transform: translateX(-5px) scale(1.1);
+        }
+
+        .product-card:hover .env-2 {
+            transform: translateY(-5px) scale(1.1);
+        }
+
+        .product-card:hover .env-3 {
+            transform: translateX(5px) scale(1.1);
+        }
+
+        .product-card h3 {
+            color: #2d3748;
+            font-size: 2em;
+            margin-bottom: 8px;
+            font-weight: 700;
+        }
+
+        .product-subtitle {
+            color: #667eea;
+            font-size: 0.9em;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+        }
+
+        .product-desc {
+            color: #718096;
+            font-size: 1em;
         }
 
         .header-option {

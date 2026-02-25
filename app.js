@@ -109,19 +109,6 @@
         }
 
         // Cargar logos como base64 (se cargarán dinámicamente desde los archivos subidos)
-        async function loadLogos() {
-            const ivSignImg = document.getElementById('ivSignLogo');
-            const ivNeosImg = document.getElementById('ivNeosLogo');
-            
-            // Cargar logos desde la carpeta images
-            ivSignImg.src = 'images/ivsign-logo.png';
-            ivNeosImg.src = 'images/ivneos-logo.png';
-            
-            ivSignImg.style.width = '100%';
-            ivSignImg.style.maxWidth = '350px';
-            ivNeosImg.style.width = '100%';
-            ivNeosImg.style.maxWidth = '350px';
-        }
 
         // Seleccionar producto
         function selectProduct(product) {
@@ -697,7 +684,6 @@
         };
 
         // Inicializar
-        loadLogos();
 
         // ==========================================
         // SISTEMA DE TRANSFORMACIONES
@@ -706,8 +692,8 @@
         let currentTransformColumn = null;
         let transformations = {}; // Guarda las transformaciones aplicadas
 
-        // Abrir modal de transformaciones
-        function openTransformModal(columnName, excelColumn) {
+        // Abrir modal de transformaciones (hacer global para onclick)
+        window.openTransformModal = function(columnName, excelColumn) {
             currentTransformColumn = columnName;
             document.getElementById('transformColumnName').textContent = columnName;
             document.getElementById('transformModal').style.display = 'flex';
