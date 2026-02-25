@@ -694,12 +694,20 @@
         window.openTransformModal = function(columnName, excelColumn) {
             currentTransformColumn = columnName;
             
-            // Obtener la columna Excel actual del select
-            const select = document.querySelector(`select.column-mapping[data-required="${columnName}"]`);
-            currentExcelColumn = select ? select.value : excelColumn;
+            // IMPORTANTE: Actualizar mapeo primero para asegurar que state.mapping esté actualizado
+            updateMapping();
+            
+            // Obtener la columna Excel actual del mapeo guardado
+            currentExcelColumn = state.mapping[columnName];
             
             if (!currentExcelColumn) {
                 alert('⚠️ Primero debes mapear una columna de tu Excel antes de transformarla');
+                return;
+            }
+            
+            // Verificar que tengamos datos
+            if (!state.excelData || state.excelData.length === 0) {
+                alert('⚠️ No hay datos cargados. Por favor carga un archivo Excel primero.');
                 return;
             }
             
