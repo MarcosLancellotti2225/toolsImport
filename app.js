@@ -675,18 +675,12 @@
             defaultInput.type = 'text';
             defaultInput.className = 'default-value-input';
             defaultInput.dataset.column = reqCol;
-            defaultInput.placeholder = template.defaults[reqCol] !== undefined ? template.defaults[reqCol] : '';
+            defaultInput.placeholder = '';
             defaultInput.value = state.customDefaults[reqCol] || '';
             defaultInput.style.cssText = 'width:100%;padding:8px;border:1px solid #e0e0e0;border-radius:5px;font-size:0.9em;';
 
-            if (template.defaults[reqCol] !== undefined && !state.customDefaults[reqCol]) {
-                defaultInput.style.color = '#999';
-            }
-
-            defaultInput.onfocus = function() { this.style.color = '#333'; };
             defaultInput.oninput = function() {
                 state.customDefaults[reqCol] = this.value;
-                this.style.color = '#333';
             };
 
             tdDefault.appendChild(defaultInput);
