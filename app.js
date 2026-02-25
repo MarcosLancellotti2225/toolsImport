@@ -316,37 +316,44 @@
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
 
+        // Evitar que el click del fileInput burbujee al uploadArea
+        // (sino fileInput.click() burbujea → uploadArea.onclick → fileInput.click() → loop)
+        fileInput.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+
         // Click en el area abre el selector de archivo
-        uploadArea.onclick = () => {
+        uploadArea.addEventListener('click', () => {
+            fileInput.value = ''; // Reset para permitir re-subir el mismo archivo
             fileInput.click();
-        };
+        });
 
         // Drag & drop
-        uploadArea.ondragover = (e) => {
+        uploadArea.addEventListener('dragover', (e) => {
             e.preventDefault();
             uploadArea.classList.add('dragover');
-        };
+        });
 
-        uploadArea.ondragleave = () => {
+        uploadArea.addEventListener('dragleave', () => {
             uploadArea.classList.remove('dragover');
-        };
+        });
 
-        uploadArea.ondrop = (e) => {
+        uploadArea.addEventListener('drop', (e) => {
             e.preventDefault();
             uploadArea.classList.remove('dragover');
             const file = e.dataTransfer.files[0];
             if (file) {
                 handleFileUpload(file);
             }
-        };
+        });
 
         // File input change
-        fileInput.onchange = (e) => {
+        fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (file) {
                 handleFileUpload(file);
             }
-        };
+        });
     }
 
     async function handleFileUpload(file) {
