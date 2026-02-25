@@ -8,15 +8,86 @@
     <!-- 
     ╔════════════════════════════════════════╗
     ║  CSV Generator for CLI - Signaturit   ║
-    ║  Version: 2.2.0                        ║
+    ║  Version: 3.2.0                        ║
     ║  Last Updated: 2025-02-25              ║
-    ║  Feature: Simple Split Transform       ║
+    ║  Products: IvSign + IvNeos             ║
+    ║  Feature: Auto-detect separator        ║
     ╚════════════════════════════════════════╝
     -->
     
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="flex: 1;">
+                    <h1>🚀 Generador CSV para CLI</h1>
+                    <p>Convierte tus Excel al formato correcto para los comandos del sistema</p>
+                </div>
+                <div class="version-badge">
+                    <span class="version-label">Version</span>
+                    <span class="version-number">3.2.0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="content">
+            <!-- PASO 0: Seleccionar Producto -->
+            <div class="step" id="productSelection">
+                <div class="step-title">
+                    <span class="step-number">0</span>
+                    Selecciona el producto
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 30px; max-width: 900px; margin-left: auto; margin-right: auto;">
+                    <!-- IvSign -->
+                    <div class="product-card" id="productIvSign" data-product="ivsign">
+                        <div class="product-icon">
+                            <div class="icon-cloud">☁️</div>
+                        </div>
+                        <h3>IvSign</h3>
+                        <p class="product-subtitle">Signaturit Product</p>
+                        <p class="product-desc">Firma electrónica<br>11 comandos</p>
+                    </div>
+
+                    <!-- IvNeos -->
+                    <div class="product-card" id="productIvNeos" data-product="ivneos">
+                        <div class="product-icon">
+                            <div class="icon-envelopes">
+                                <span class="envelope env-1">✉️</span>
+                                <span class="envelope env-2">✉️</span>
+                                <span class="envelope env-3">✉️</span>
+                            </div>
+                        </div>
+                        <h3>IvNeos</h3>
+                        <p class="product-subtitle">Gestión</p>
+                        <p class="product-desc">Notificaciones<br>3 comandos</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PASO 1: Seleccionar Comando -->
+            <div class="step" id="commandSelection" style="display: none;">
+                <div class="step-title">
+                    <span class="step-number">1</span>
+                    Selecciona el comando CLI
+                </div>
+                
+                <div class="command-grid" id="commandGrid"></div>
+                
+                <div id="columnsInfo" class="columns-info" style="display: none;">
+                    <strong>Columnas requeridas:</strong>
+                    <div id="requiredColumns"></div>
+                </div>
+            </div>
+
+            <!-- PASO 2: Crear o Cargar Excel -->
+            <div class="step">
+                <div class="step-title">
+                    <span class="step-number">2</span>
+                    ¿Crear template o convertir Excel existente?
                 </div>
                 
                 <div class="button-group" style="margin-bottom: 20px;">
@@ -39,47 +110,9 @@
                     <input type="file" id="fileInput" class="file-input" accept=".xlsx,.xls">
                 </div>
 
-                <div id="headerOption" style="display: none; margin-top: 20px;">
-                    <h3 style="color: #667eea; margin-bottom: 15px;">¿Tu Excel tiene encabezados en la primera fila?</h3>
-                    
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
-                        <!-- Opción CON encabezados -->
-                        <div class="header-option" id="optionWithHeader" style="background: #f8f9ff; padding: 20px; border-radius: 10px; border: 3px solid #667eea; cursor: pointer;">
-                            <div style="text-align: center; margin-bottom: 10px; font-size: 2em;">✅</div>
-                            <h4 style="color: #667eea; margin-bottom: 10px;">CON Encabezados</h4>
-                            <small style="color: #666; line-height: 1.5; display: block;">
-                                La primera fila tiene títulos:<br>
-                                <code style="background: #e8f5e9; padding: 3px 6px; border-radius: 3px; font-size: 0.85em; display: inline-block; margin-top: 5px;">
-                                    userid | email | nombre
-                                </code>
-                            </small>
-                        </div>
-
-                        <!-- Opción SIN encabezados -->
-                        <div class="header-option" id="optionWithoutHeader" style="background: white; padding: 20px; border-radius: 10px; border: 3px solid #e0e0e0; cursor: pointer;">
-                            <div style="text-align: center; margin-bottom: 10px; font-size: 2em;">📋</div>
-                            <h4 style="color: #666; margin-bottom: 10px;">SIN Encabezados</h4>
-                            <small style="color: #666; line-height: 1.5; display: block;">
-                                Solo datos, sin títulos:<br>
-                                <code style="background: #fff3cd; padding: 3px 6px; border-radius: 3px; font-size: 0.85em; display: inline-block; margin-top: 5px;">
-                                    Columna A | Columna B | Columna C
-                                </code>
-                            </small>
-                        </div>
-                    </div>
-
-                    <input type="hidden" id="hasHeaderRow" value="true">
-
-                    <div class="button-group">
-                        <button class="btn btn-primary" id="processFileBtn" style="width: 100%;">
-                            ✅ Procesar Archivo
-                        </button>
-                    </div>
-                </div>
-
                 <div id="templateCreated" style="display: none;">
                     <div class="success-box">
-                        ✅ <strong>Template listo para exportar!</strong> Dale un nombre personalizado (ej: Template_Urbaser, Template_Cliente_X)
+                        ✅ <strong>Template listo para exportar!</strong> Dale un nombre personalizado
                     </div>
                     
                     <div style="margin: 20px 0;">
@@ -100,6 +133,42 @@
                         📥 Descargar Template Excel
                     </button>
                 </div>
+
+                <div id="headerOption" style="display: none; margin-top: 20px;">
+                    <h3 style="color: #667eea; margin-bottom: 15px;">¿Tu Excel tiene encabezados en la primera fila?</h3>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                        <div class="header-option" id="optionWithHeader" style="background: #f8f9ff; padding: 20px; border-radius: 10px; border: 3px solid #667eea; cursor: pointer;">
+                            <div style="text-align: center; margin-bottom: 10px; font-size: 2em;">✅</div>
+                            <h4 style="color: #667eea; margin-bottom: 10px;">CON Encabezados</h4>
+                            <small style="color: #666; line-height: 1.5; display: block;">
+                                La primera fila tiene títulos:<br>
+                                <code style="background: #e8f5e9; padding: 3px 6px; border-radius: 3px; font-size: 0.85em; display: inline-block; margin-top: 5px;">
+                                    userid | email | nombre
+                                </code>
+                            </small>
+                        </div>
+
+                        <div class="header-option" id="optionWithoutHeader" style="background: white; padding: 20px; border-radius: 10px; border: 3px solid #e0e0e0; cursor: pointer;">
+                            <div style="text-align: center; margin-bottom: 10px; font-size: 2em;">📋</div>
+                            <h4 style="color: #666; margin-bottom: 10px;">SIN Encabezados</h4>
+                            <small style="color: #666; line-height: 1.5; display: block;">
+                                Solo datos, sin títulos:<br>
+                                <code style="background: #fff3cd; padding: 3px 6px; border-radius: 3px; font-size: 0.85em; display: inline-block; margin-top: 5px;">
+                                    Columna A | Columna B | Columna C
+                                </code>
+                            </small>
+                        </div>
+                    </div>
+
+                    <input type="hidden" id="hasHeaderRow" value="true">
+
+                    <div class="button-group">
+                        <button class="btn btn-primary" id="processFileBtn" style="width: 100%;">
+                            ✅ Procesar Archivo
+                        </button>
+                    </div>
+                </div>
             </div>
 
             <!-- PASO 3: Mapear Columnas -->
@@ -110,7 +179,7 @@
                 </div>
                 
                 <div class="info-box">
-                    💡 <strong>Mapeo automático detectado:</strong> Revisa que las columnas estén bien emparejadas. Si algo está mal, ajústalo manualmente.
+                    💡 <strong>Mapeo automático detectado:</strong> Revisa que las columnas estén bien emparejadas.
                 </div>
 
                 <div class="button-group" style="margin: 20px 0;">
@@ -134,8 +203,7 @@
                                 <th>Valor por defecto (opcional)</th>
                             </tr>
                         </thead>
-                        <tbody id="mappingBody">
-                        </tbody>
+                        <tbody id="mappingBody"></tbody>
                     </table>
                     
                     <div class="button-group" style="margin-top: 20px;">
@@ -193,55 +261,93 @@
             </div>
         </div>
     </div>
-
-<!-- Modal simple de Split -->
-<div id="splitModal" class="modal" style="display: none;">
-    <div class="modal-content" style="max-width: 600px;">
+<!-- MODAL CONSTRUCTOR v3.0 -->
+<!-- MODAL DIVISIÓN SIMPLE v3.1 -->
+<div id="divisionModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 700px;">
         <div class="modal-header">
-            <h2>🔀 Dividir Columna: <span id="splitColumnName"></span></h2>
-            <button class="modal-close" onclick="closeSplitModal()">✖</button>
+            <h2>🔀 Dividir Columna: <span id="divisionColumnName"></span></h2>
+            <button class="modal-close" onclick="closeDivisionModal()">✖</button>
         </div>
         
         <div class="modal-body">
-            <div class="form-group">
-                <label><strong>Columna origen:</strong></label>
-                <p id="splitSourceColumn" style="color: #667eea; font-weight: 600;"></p>
-            </div>
-
-            <div class="form-group">
-                <label><strong>Separador:</strong></label>
-                <div style="display: flex; gap: 10px; margin-top: 10px;">
-                    <label style="display: flex; align-items: center; gap: 5px;">
-                        <input type="radio" name="separator" value=" " checked> Espacio
-                    </label>
-                    <label style="display: flex; align-items: center; gap: 5px;">
-                        <input type="radio" name="separator" value=","> Coma
-                    </label>
-                    <label style="display: flex; align-items: center; gap: 5px;">
-                        <input type="radio" name="separator" value="-"> Guión
-                    </label>
-                    <label style="display: flex; align-items: center; gap: 5px;">
-                        <input type="radio" name="separator" value="custom"> Otro:
-                        <input type="text" id="customSeparator" placeholder="_" style="width: 40px; padding: 4px;">
-                    </label>
+            <!-- Datos originales -->
+            <div style="margin-bottom: 20px;">
+                <h3 style="color: #667eea; margin-bottom: 10px;">📊 TUS DATOS ORIGINALES:</h3>
+                <div id="originalData" style="background: #f8f9ff; padding: 15px; border-radius: 8px; border: 2px solid #667eea; font-family: monospace; font-size: 0.95em; line-height: 1.8;">
+                    <!-- Se llenará dinámicamente -->
                 </div>
             </div>
 
-            <div class="form-group">
-                <label><strong>Preview (primeras 3 filas):</strong></label>
-                <div id="splitPreviewBox" style="background: #f8f9ff; padding: 15px; border-radius: 8px; border: 2px solid #667eea; font-family: monospace; font-size: 0.9em;">
-                    Cargando...
+            <!-- Separador -->
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #333; font-size: 1.1em;">
+                    ✂️ ¿Con qué separar?
+                </label>
+                
+                <!-- Botones rápidos -->
+                <div style="display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap;">
+                    <button onclick="setSeparator(', ')" class="btn btn-primary" style="padding: 8px 15px; font-size: 0.9em; background: #28a745;">
+                        , (coma + espacio)
+                    </button>
+                    <button onclick="setSeparator(',')" class="btn btn-primary" style="padding: 8px 15px; font-size: 0.9em; background: #6c757d;">
+                        , (solo coma)
+                    </button>
+                    <button onclick="setSeparator(' ')" class="btn btn-primary" style="padding: 8px 15px; font-size: 0.9em; background: #6c757d;">
+                        (espacio)
+                    </button>
+                    <button onclick="setSeparator(';')" class="btn btn-primary" style="padding: 8px 15px; font-size: 0.9em; background: #6c757d;">
+                        ; (punto y coma)
+                    </button>
+                    <button onclick="setSeparator('-')" class="btn btn-primary" style="padding: 8px 15px; font-size: 0.9em; background: #6c757d;">
+                        - (guión)
+                    </button>
+                </div>
+                
+                <input 
+                    type="text" 
+                    id="separatorInput" 
+                    placeholder="O escribe tu propio separador..."
+                    style="width: 100%; padding: 12px; border: 2px solid #667eea; border-radius: 8px; font-size: 1.1em; font-family: monospace;"
+                    oninput="updateLivePreview()">
+                <small style="color: #666; display: block; margin-top: 5px;">
+                    💡 <strong>Tip:</strong> Para nombres como "APELLIDO, NOMBRE" usa <code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px;">, </code> (coma + espacio)
+                </small>
+            </div>
+
+            <!-- Preview en vivo -->
+            <div style="margin-bottom: 20px;">
+                <h3 style="color: #28a745; margin-bottom: 10px;">👁️ CÓMO QUEDA (preview automático):</h3>
+                <div id="livePreview" style="background: #e8f5e9; padding: 15px; border-radius: 8px; border: 2px solid #28a745; font-family: monospace; font-size: 0.95em; min-height: 80px;">
+                    <span style="color: #999;">Escribe un separador arriba para ver el preview...</span>
                 </div>
             </div>
 
-            <div class="form-group">
-                <label><strong>Asignar partes a columnas:</strong></label>
-                <div id="splitAssignments"></div>
+            <!-- Nombrar partes -->
+            <div id="namingSection" style="display: none; margin-bottom: 20px;">
+                <h3 style="color: #667eea; margin-bottom: 10px;">✏️ Nombra cada parte:</h3>
+                <div id="namingInputs" style="display: flex; flex-direction: column; gap: 10px;">
+                    <!-- Se llenará dinámicamente -->
+                </div>
             </div>
 
-            <button class="btn btn-primary" onclick="applySplitTransform()" style="width: 100%; margin-top: 20px;">
-                ✅ Aplicar División
-            </button>
+            <!-- Columnas que se crearán -->
+            <div id="newColumnsSection" style="display: none; margin-bottom: 20px;">
+                <h3 style="color: #2196f3; margin-bottom: 10px;">✅ Se crearán estas columnas:</h3>
+                <div id="newColumnsList" style="background: #e3f2fd; padding: 15px; border-radius: 8px; border: 2px solid #2196f3;">
+                    <!-- Se llenará dinámicamente -->
+                </div>
+            </div>
+
+            <!-- Botones -->
+            <div style="display: flex; gap: 10px;">
+                <button class="btn btn-primary" onclick="applyDivision()" id="applyBtn" disabled style="flex: 1; background: #28a745; opacity: 0.5;">
+                    ✅ Aplicar División
+                </button>
+                <button class="btn btn-primary" onclick="closeDivisionModal()" style="background: #6c757d;">
+                    ❌ Cancelar
+                </button>
+            </div>
         </div>
     </div>
 </div>

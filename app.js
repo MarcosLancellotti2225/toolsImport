@@ -1,52 +1,82 @@
 const COMMAND_TEMPLATES = {
+            // IvSign Commands
             'users-add': {
+                product: 'ivsign',
                 category: 'Users',
                 columns: ['userid', 'email', 'nombre', 'apellidos', 'dni', 'telefono', 'rol', 'password']
             },
             'users-set': {
+                product: 'ivsign',
                 category: 'Users',
                 columns: ['userid', 'nombre', 'apellidos', 'dni', 'email']
             },
             'users-remove': {
+                product: 'ivsign',
                 category: 'Users',
                 columns: ['orgaid', 'userid']
             },
             'certs-import': {
+                product: 'ivsign',
                 category: 'Certs',
                 columns: ['cert_pfx', 'cert_password', 'cert_name', 'descr', 'cert_pin', 'userid', 'orgaid', 'cargo', 'departamento', 'personalizado']
             },
             'certs-del': {
+                product: 'ivsign',
                 category: 'Certs',
                 columns: ['certid']
             },
             'certs-pinset': {
+                product: 'ivsign',
                 category: 'Certs',
                 columns: ['certid', 'pin_antiguo', 'pin_nuevo']
             },
             'delegs-add': {
+                product: 'ivsign',
                 category: 'Delegs',
                 columns: ['certid', 'delegate_name', 'description', 'Ignorecertrules', 'needauth']
             },
             'delegs-usersadd': {
+                product: 'ivsign',
                 category: 'Delegs',
                 columns: ['delegid', 'orgaid', 'cert_userid', 'cert_pin', 'cert_deleg_pin', 'notify']
             },
             'delegs-del': {
+                product: 'ivsign',
                 category: 'Delegs',
                 columns: ['delegid']
             },
             'delegs-usersdel': {
+                product: 'ivsign',
                 category: 'Delegs',
                 columns: ['delegid', 'userid']
             },
             'rules-add': {
+                product: 'ivsign',
                 category: 'Rules',
                 columns: ['certid']
+            },
+            
+            // IvNeos Commands
+            'clientes-import': {
+                product: 'ivneos',
+                category: 'Clientes',
+                columns: ['nombre', 'cif', 'direccion', 'cp', 'poblacion', 'provincia', 'pais', 'telefono', 'email']
+            },
+            'grupos-import': {
+                product: 'ivneos',
+                category: 'Grupos',
+                columns: ['nombre', 'descripcion']
+            },
+            'usuarios-import': {
+                product: 'ivneos',
+                category: 'Usuarios',
+                columns: ['nombre', 'apellidos', 'email', 'telefono', 'grupo']
             }
         };
 
         // Estado global
         let state = {
+            selectedProduct: null,
             selectedCommand: null,
             excelData: null,
             excelColumns: [],
@@ -60,7 +90,12 @@ const COMMAND_TEMPLATES = {
             const grid = document.getElementById('commandGrid');
             grid.innerHTML = '';
 
-            Object.keys(COMMAND_TEMPLATES).forEach(cmd => {
+            // Filtrar comandos por producto seleccionado
+            const filteredCommands = Object.keys(COMMAND_TEMPLATES).filter(cmd => {
+                return state.selectedProduct && COMMAND_TEMPLATES[cmd].product === state.selectedProduct;
+            });
+
+            filteredCommands.forEach(cmd => {
                 const template = COMMAND_TEMPLATES[cmd];
                 const btn = document.createElement('button');
                 btn.className = 'command-btn';
@@ -367,7 +402,7 @@ const COMMAND_TEMPLATES = {
                         </select>
                     </td>
                     <td style="text-align: center;">
-                        <button class="btn btn-primary" onclick="openSplitModal('${requiredCol}')" 
+                        <button class="btn btn-primary" onclick="openDivisionModal('${requiredCol}')" 
                                 style="padding: 6px 12px; font-size: 0.9em; background: #28a745;">
                             🔀 Dividir
                         </button>
@@ -614,14 +649,45 @@ const COMMAND_TEMPLATES = {
             location.reload();
         };
 
-        // Inicializar
-        renderCommandButtons();
-// Variables globales para split
-let splitCurrentColumn = null;
-let splitSourceData = [];
+        // Selector de productos
+        function selectProduct(product) {
+            state.selectedProduct = product;
+            
+            // Actualizar UI de las tarjetas
+            document.querySelectorAll('.product-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            document.getElementById('product' + (product === 'ivsign' ? 'IvSign' : 'IvNeos')).classList.add('selected');
+            
+            // Mostrar sección de comandos
+            document.getElementById('commandSelection').style.display = 'block';
+            
+            // Renderizar comandos filtrados
+            renderCommandButtons();
+            
+            // Scroll suave a comandos
+            document.getElementById('commandSelection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
 
-// Abrir modal de split
-window.openSplitModal = function(columnName) {
+        // Event listeners para tarjetas de productos
+        document.getElementById('productIvSign').onclick = () => selectProduct('ivsign');
+        document.getElementById('productIvNeos').onclick = () => selectProduct('ivneos');
+
+// ==========================================
+// DIVISIÓN SIMPLE v3.1.0
+// ==========================================
+
+let divisionState = {
+    currentColumn: null,
+    sourceColumn: null,
+    sourceData: [],
+    separator: '',
+    parts: [],
+    columnNames: []
+};
+
+// Abrir modal de división
+window.openDivisionModal = function(columnName) {
     // Actualizar mapeo primero
     updateMapping();
     
@@ -638,181 +704,262 @@ window.openSplitModal = function(columnName) {
         return;
     }
     
-    // Guardar info
-    splitCurrentColumn = columnName;
-    
-    // Obtener índice de columna
-    const colIndex = state.excelColumns.indexOf(excelColumn);
-    if (colIndex === -1) {
-        alert('⚠️ No se encontró la columna');
-        return;
-    }
+    // Resetear estado
+    divisionState.currentColumn = columnName;
+    divisionState.sourceColumn = excelColumn;
+    divisionState.separator = '';
+    divisionState.parts = [];
+    divisionState.columnNames = [];
     
     // Obtener datos de muestra (primeras 3 filas)
-    splitSourceData = state.excelData.slice(0, 3).map(row => row[colIndex] || '');
+    const colIndex = state.excelColumns.indexOf(excelColumn);
+    divisionState.sourceData = state.excelData.slice(0, 3).map(row => row[colIndex] || '');
     
     // Actualizar UI
-    document.getElementById('splitColumnName').textContent = columnName;
-    document.getElementById('splitSourceColumn').textContent = excelColumn;
-    document.getElementById('splitModal').style.display = 'flex';
+    document.getElementById('divisionColumnName').textContent = columnName;
     
-    // Mostrar preview inicial
-    updateSplitPreview();
+    // Mostrar datos originales
+    const originalDataDiv = document.getElementById('originalData');
+    originalDataDiv.innerHTML = divisionState.sourceData.map((val, idx) => 
+        `<div style="padding: 5px 0; border-bottom: 1px solid #ddd;">
+            Fila ${idx + 1}: <strong style="color: #667eea;">"${val}"</strong>
+        </div>`
+    ).join('');
+    
+    // Resetear inputs
+    document.getElementById('separatorInput').value = '';
+    document.getElementById('livePreview').innerHTML = '<span style="color: #999;">Haz click en un separador común o escribe el tuyo...</span>';
+    document.getElementById('namingSection').style.display = 'none';
+    document.getElementById('newColumnsSection').style.display = 'none';
+    document.getElementById('applyBtn').disabled = true;
+    document.getElementById('applyBtn').style.opacity = '0.5';
+    
+    // Auto-detectar separador más probable
+    const sampleData = divisionState.sourceData[0] || '';
+    let suggestedSeparator = '';
+    
+    if (sampleData.includes(', ')) {
+        suggestedSeparator = ', ';
+    } else if (sampleData.includes(',')) {
+        suggestedSeparator = ',';
+    } else if (sampleData.includes(';')) {
+        suggestedSeparator = ';';
+    } else if (sampleData.includes('-')) {
+        suggestedSeparator = '-';
+    }
+    
+    // Si se detectó un separador, sugerirlo visualmente
+    if (suggestedSeparator) {
+        document.getElementById('livePreview').innerHTML = `
+            <div style="text-align: center; padding: 20px;">
+                <div style="font-size: 1.2em; color: #28a745; margin-bottom: 10px;">
+                    💡 <strong>Separador detectado automáticamente</strong>
+                </div>
+                <div style="margin-bottom: 15px;">
+                    Parece que tus datos usan: <code style="background: #e8f5e9; padding: 5px 15px; border-radius: 5px; font-size: 1.3em; color: #2e7d32;">${suggestedSeparator === ' ' ? '(espacio)' : suggestedSeparator}</code>
+                </div>
+                <button onclick="setSeparator('${suggestedSeparator.replace(/'/g, "\\'")}')" class="btn btn-primary" style="background: #28a745;">
+                    ✅ Usar este separador
+                </button>
+            </div>
+        `;
+    }
+    
+    // Mostrar modal
+    document.getElementById('divisionModal').style.display = 'flex';
 };
 
 // Cerrar modal
-function closeSplitModal() {
-    document.getElementById('splitModal').style.display = 'none';
+function closeDivisionModal() {
+    document.getElementById('divisionModal').style.display = 'none';
 }
 
-// Actualizar preview cuando cambia separador
-function updateSplitPreview() {
-    // Obtener separador seleccionado
-    let separator = ' ';
-    const radios = document.getElementsByName('separator');
-    for (let radio of radios) {
-        if (radio.checked) {
-            if (radio.value === 'custom') {
-                separator = document.getElementById('customSeparator').value || '_';
-            } else {
-                separator = radio.value;
-            }
-            break;
-        }
+// Función para setear separador rápidamente
+window.setSeparator = function(separator) {
+    document.getElementById('separatorInput').value = separator;
+    updateLivePreview();
+};
+
+// Actualizar preview en vivo
+function updateLivePreview() {
+    const separator = document.getElementById('separatorInput').value;
+    
+    if (!separator) {
+        document.getElementById('livePreview').innerHTML = '<span style="color: #999;">Escribe un separador arriba para ver el preview...</span>';
+        document.getElementById('namingSection').style.display = 'none';
+        document.getElementById('newColumnsSection').style.display = 'none';
+        document.getElementById('applyBtn').disabled = true;
+        document.getElementById('applyBtn').style.opacity = '0.5';
+        return;
     }
     
+    divisionState.separator = separator;
+    
     // Dividir datos
-    const splitData = splitSourceData.map(value => {
+    divisionState.parts = divisionState.sourceData.map(value => {
         if (!value) return [];
         return String(value).split(separator);
     });
     
-    // Determinar número máximo de partes
-    const maxParts = Math.max(...splitData.map(parts => parts.length), 1);
+    // Encontrar número máximo de partes
+    const maxParts = Math.max(...divisionState.parts.map(p => p.length), 0);
     
-    // Mostrar preview
-    const previewBox = document.getElementById('splitPreviewBox');
-    previewBox.innerHTML = splitData.map((parts, idx) => {
-        const original = splitSourceData[idx];
-        const divided = parts.map((p, i) => `Parte ${i+1}: "${p}"`).join(' | ');
-        return `<div style="padding: 5px 0; border-bottom: 1px solid #e0e0e0;">
-            <span style="color: #999;">${original}</span><br>
-            → <span style="color: #28a745;">${divided}</span>
-        </div>`;
-    }).join('');
-    
-    // Crear opciones de asignación
-    const assignDiv = document.getElementById('splitAssignments');
-    const template = COMMAND_TEMPLATES[state.selectedCommand];
-    const availableColumns = template.columns;
-    
-    assignDiv.innerHTML = '';
-    for (let i = 0; i < maxParts; i++) {
-        const div = document.createElement('div');
-        div.style.cssText = 'margin: 10px 0; display: flex; align-items: center; gap: 10px;';
-        div.innerHTML = `
-            <strong style="min-width: 80px;">Parte ${i + 1}:</strong>
-            <select class="split-assignment" data-part="${i}" style="flex: 1; padding: 8px; border: 2px solid #667eea; border-radius: 5px;">
-                <option value="">-- No usar --</option>
-                ${availableColumns.map(col => 
-                    `<option value="${col}">${col}</option>`
-                ).join('')}
-            </select>
-        `;
-        assignDiv.appendChild(div);
-    }
-}
-
-// Aplicar transformación
-function applySplitTransform() {
-    // Obtener asignaciones
-    const assignments = {};
-    document.querySelectorAll('.split-assignment').forEach(select => {
-        const part = select.dataset.part;
-        const column = select.value;
-        if (column) {
-            assignments[part] = column;
-        }
-    });
-    
-    if (Object.keys(assignments).length === 0) {
-        alert('⚠️ Debes asignar al menos una parte a una columna');
+    if (maxParts === 0) {
+        document.getElementById('livePreview').innerHTML = '<span style="color: #dc3545;">❌ No se encontró ese separador en los datos</span>';
+        document.getElementById('namingSection').style.display = 'none';
+        document.getElementById('newColumnsSection').style.display = 'none';
+        document.getElementById('applyBtn').disabled = true;
+        document.getElementById('applyBtn').style.opacity = '0.5';
         return;
     }
     
-    // Obtener separador
-    let separator = ' ';
-    const radios = document.getElementsByName('separator');
-    for (let radio of radios) {
-        if (radio.checked) {
-            if (radio.value === 'custom') {
-                separator = document.getElementById('customSeparator').value || '_';
-            } else {
-                separator = radio.value;
-            }
-            break;
+    // Mostrar preview como tabla
+    let previewHTML = '<table style="width: 100%; border-collapse: collapse;">';
+    
+    // Header
+    previewHTML += '<tr>';
+    for (let i = 0; i < maxParts; i++) {
+        previewHTML += `<th style="padding: 8px; border: 1px solid #28a745; background: #c8e6c9; text-align: left;">Parte ${i + 1}</th>`;
+    }
+    previewHTML += '</tr>';
+    
+    // Datos
+    divisionState.parts.forEach((parts, idx) => {
+        previewHTML += '<tr>';
+        for (let i = 0; i < maxParts; i++) {
+            const value = parts[i] || '';
+            previewHTML += `<td style="padding: 8px; border: 1px solid #28a745; background: white;"><strong>${value}</strong></td>`;
         }
+        previewHTML += '</tr>';
+    });
+    
+    previewHTML += '</table>';
+    document.getElementById('livePreview').innerHTML = previewHTML;
+    
+    // Mostrar sección de nombrado
+    showNamingInputs(maxParts);
+}
+
+// Mostrar inputs para nombrar partes
+function showNamingInputs(numParts) {
+    const namingDiv = document.getElementById('namingInputs');
+    namingDiv.innerHTML = '';
+    
+    for (let i = 0; i < numParts; i++) {
+        const input = document.createElement('div');
+        input.innerHTML = `
+            <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #667eea;">
+                Parte ${i + 1}:
+            </label>
+            <input 
+                type="text" 
+                class="column-name-input" 
+                data-part="${i}"
+                placeholder="Ej: apellidos, nombre, dni..."
+                style="width: 100%; padding: 10px; border: 2px solid #667eea; border-radius: 5px; font-size: 1em;"
+                oninput="updateColumnNames()">
+        `;
+        namingDiv.appendChild(input);
+    }
+    
+    document.getElementById('namingSection').style.display = 'block';
+    divisionState.columnNames = new Array(numParts).fill('');
+}
+
+// Actualizar nombres de columnas
+function updateColumnNames() {
+    const inputs = document.querySelectorAll('.column-name-input');
+    divisionState.columnNames = Array.from(inputs).map(input => input.value.trim());
+    
+    // Verificar si todos tienen nombre
+    const allNamed = divisionState.columnNames.every(name => name.length > 0);
+    
+    if (allNamed) {
+        // Mostrar columnas que se crearán
+        const newColsList = document.getElementById('newColumnsList');
+        newColsList.innerHTML = divisionState.columnNames.map(name => 
+            `<div style="display: inline-block; background: #2196f3; color: white; padding: 8px 15px; margin: 5px; border-radius: 20px; font-weight: 600;">
+                📊 ${divisionState.sourceColumn}_${name}
+            </div>`
+        ).join('');
+        
+        document.getElementById('newColumnsSection').style.display = 'block';
+        
+        // Habilitar botón
+        document.getElementById('applyBtn').disabled = false;
+        document.getElementById('applyBtn').style.opacity = '1';
+    } else {
+        document.getElementById('newColumnsSection').style.display = 'none';
+        document.getElementById('applyBtn').disabled = true;
+        document.getElementById('applyBtn').style.opacity = '0.5';
+    }
+}
+
+// Aplicar división
+function applyDivision() {
+    if (!divisionState.separator) {
+        alert('⚠️ Debes especificar un separador');
+        return;
+    }
+    
+    if (divisionState.columnNames.some(name => !name)) {
+        alert('⚠️ Debes nombrar todas las partes');
+        return;
     }
     
     // Obtener columna origen
-    const excelColumn = state.mapping[splitCurrentColumn];
-    const colIndex = state.excelColumns.indexOf(excelColumn);
+    const sourceCol = divisionState.sourceColumn;
+    const colIndex = state.excelColumns.indexOf(sourceCol);
     
-    // Aplicar split a TODOS los datos
-    const newColumns = {};
-    Object.values(assignments).forEach(colName => {
-        newColumns[colName] = [];
-    });
+    if (colIndex === -1) {
+        alert('❌ Error: No se encontró la columna origen');
+        return;
+    }
     
-    state.excelData.forEach(row => {
+    // Procesar TODOS los datos
+    const allParts = state.excelData.map(row => {
         const value = row[colIndex] || '';
-        const parts = String(value).split(separator);
-        
-        Object.entries(assignments).forEach(([partIdx, targetCol]) => {
-            const partValue = parts[parseInt(partIdx)] || '';
-            newColumns[targetCol].push(partValue);
-        });
+        return String(value).split(divisionState.separator);
     });
     
-    // Actualizar state con nuevas columnas
-    Object.entries(newColumns).forEach(([colName, values]) => {
+    // Crear nuevas columnas
+    divisionState.columnNames.forEach((colName, partIndex) => {
+        const newColName = `${sourceCol}_${colName}`;
+        
         // Agregar columna si no existe
-        if (!state.excelColumns.includes(colName + '_split')) {
-            state.excelColumns.push(colName + '_split');
+        if (!state.excelColumns.includes(newColName)) {
+            state.excelColumns.push(newColName);
         }
         
         // Agregar datos
-        values.forEach((val, idx) => {
-            if (!state.excelData[idx]) state.excelData[idx] = [];
-            state.excelData[idx].push(val);
+        const newColIndex = state.excelColumns.indexOf(newColName);
+        allParts.forEach((parts, rowIndex) => {
+            const value = parts[partIndex] || '';
+            if (state.excelData[rowIndex].length <= newColIndex) {
+                state.excelData[rowIndex].push(value);
+            } else {
+                state.excelData[rowIndex][newColIndex] = value;
+            }
         });
         
-        // Actualizar mapeo
-        state.mapping[colName] = colName + '_split';
+        // Actualizar mapeo automático si coincide
+        const template = COMMAND_TEMPLATES[state.selectedCommand];
+        const requiredCols = template.columns;
+        const matchingRequired = requiredCols.find(req => 
+            req.toLowerCase() === colName.toLowerCase()
+        );
+        if (matchingRequired && !state.mapping[matchingRequired]) {
+            state.mapping[matchingRequired] = newColName;
+        }
     });
     
     // Cerrar modal
-    closeSplitModal();
+    closeDivisionModal();
     
     // Actualizar preview
     generatePreview();
     
-    alert('✅ División aplicada correctamente! Revisa el preview abajo.');
+    // Mensaje de éxito
+    const createdCols = divisionState.columnNames.map(name => `• ${sourceCol}_${name}`).join('\n');
+    alert(`✅ División aplicada!\n\nColumnas creadas:\n${createdCols}`);
 }
-
-// Event listeners para separador
-document.addEventListener('DOMContentLoaded', () => {
-    // Listener para radio buttons
-    document.querySelectorAll('input[name="separator"]').forEach(radio => {
-        radio.addEventListener('change', updateSplitPreview);
-    });
-    
-    // Listener para custom separator
-    const customInput = document.getElementById('customSeparator');
-    if (customInput) {
-        customInput.addEventListener('input', () => {
-            document.querySelector('input[name="separator"][value="custom"]').checked = true;
-            updateSplitPreview();
-        });
-    }
-});
