@@ -8,10 +8,10 @@
     <!-- 
     ╔════════════════════════════════════════╗
     ║  CSV Generator for CLI - Signaturit   ║
-    ║  Version: 4.0.1                        ║
+    ║  Version: 4.1.0                        ║
     ║  Last Updated: 2025-02-25              ║
     ║  Products: IvSign + IvNeos             ║
-    ║  Features: Multi-format + Transform    ║
+    ║  Features: Multi-format INTEGRADO    ║
     ╚════════════════════════════════════════╝
     -->
     
@@ -37,7 +37,7 @@
                 </div>
                 <div class="version-badge">
                     <span class="version-label">Version</span>
-                    <span class="version-number">4.0.1</span>
+                    <span class="version-number">4.1.0</span>
                 </div>
             </div>
         </div>
@@ -92,11 +92,11 @@
                 </div>
             </div>
 
-            <!-- PASO 2: Crear o Cargar Excel -->
+            <!-- PASO 2: Crear o Cargar Archivo -->
             <div class="step">
                 <div class="step-title">
                     <span class="step-number">2</span>
-                    ¿Crear template o convertir Excel existente?
+                    ¿Crear template o convertir archivo existente?
                 </div>
                 
                 <div class="button-group" style="margin-bottom: 20px;">
@@ -104,7 +104,7 @@
                         📄 Crear Template Vacío
                     </button>
                     <button class="btn btn-primary" id="loadExcelBtn" style="flex: 1; background: #28a745;">
-                        📁 Cargar Excel Existente
+                        📁 Cargar Archivo Existente
                     </button>
                 </div>
 
@@ -112,11 +112,88 @@
                     <span id="modeInfoText"></span>
                 </div>
                 
+                <!-- Selector de Formato -->
+                <div id="formatSelector" style="display: none; margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 10px; font-weight: 600; font-size: 1.1em;">
+                        📁 Formato del archivo:
+                    </label>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;">
+                        <div class="format-card" data-format="xlsx" onclick="selectFormat('xlsx')" style="cursor: pointer; padding: 15px; border: 2px solid #e0e0e0; border-radius: 10px; text-align: center; transition: all 0.3s;">
+                            <div style="font-size: 1.8em; margin-bottom: 8px;">📊</div>
+                            <div style="font-weight: 600; margin-bottom: 5px;">Excel</div>
+                            <div style="font-size: 0.85em; color: #666;">.xlsx, .xls</div>
+                        </div>
+                        
+                        <div class="format-card" data-format="csv" onclick="selectFormat('csv')" style="cursor: pointer; padding: 15px; border: 2px solid #e0e0e0; border-radius: 10px; text-align: center; transition: all 0.3s;">
+                            <div style="font-size: 1.8em; margin-bottom: 8px;">📄</div>
+                            <div style="font-weight: 600; margin-bottom: 5px;">CSV</div>
+                            <div style="font-size: 0.85em; color: #666;">.csv</div>
+                        </div>
+                        
+                        <div class="format-card" data-format="json" onclick="selectFormat('json')" style="cursor: pointer; padding: 15px; border: 2px solid #e0e0e0; border-radius: 10px; text-align: center; transition: all 0.3s;">
+                            <div style="font-size: 1.8em; margin-bottom: 8px;">🔧</div>
+                            <div style="font-weight: 600; margin-bottom: 5px;">JSON</div>
+                            <div style="font-size: 0.85em; color: #666;">.json</div>
+                        </div>
+                        
+                        <div class="format-card" data-format="xml" onclick="selectFormat('xml')" style="cursor: pointer; padding: 15px; border: 2px solid #e0e0e0; border-radius: 10px; text-align: center; transition: all 0.3s;">
+                            <div style="font-size: 1.8em; margin-bottom: 8px;">📝</div>
+                            <div style="font-weight: 600; margin-bottom: 5px;">XML</div>
+                            <div style="font-size: 0.85em; color: #666;">.xml</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Opciones CSV -->
+                <div id="csvOptions" style="display: none; margin: 20px 0; padding: 20px; background: #f8f9ff; border: 2px solid #667eea; border-radius: 10px;">
+                    <h4 style="color: #667eea; margin-bottom: 15px;">⚙️ Opciones CSV:</h4>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-weight: 600;">Separador:</label>
+                            <select id="csvDelimiter" style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ddd;">
+                                <option value="auto">🔍 Auto-detectar</option>
+                                <option value=",">, (coma)</option>
+                                <option value=";">; (punto y coma)</option>
+                                <option value="\t">⇥ (tabulador)</option>
+                                <option value="|">| (pipe)</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; font-weight: 600;">Encoding:</label>
+                            <select id="csvEncoding" style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ddd;">
+                                <option value="UTF-8">UTF-8</option>
+                                <option value="ISO-8859-1">Latin1 (ISO-8859-1)</option>
+                                <option value="Windows-1252">Windows-1252</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Opciones XML -->
+                <div id="xmlOptions" style="display: none; margin: 20px 0; padding: 20px; background: #f8f9ff; border: 2px solid #667eea; border-radius: 10px;">
+                    <h4 style="color: #667eea; margin-bottom: 15px;">⚙️ Opciones XML:</h4>
+                    
+                    <div>
+                        <label style="display: block; margin-bottom: 5px; font-weight: 600;">Nombre del elemento fila (opcional):</label>
+                        <input 
+                            type="text" 
+                            id="xmlRowPath" 
+                            placeholder="Ej: user, row, item (vacío = auto-detectar)"
+                            style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ddd;">
+                        <small style="color: #666; display: block; margin-top: 5px;">
+                            Dejar vacío para auto-detectar
+                        </small>
+                    </div>
+                </div>
+                
                 <div class="upload-area" id="uploadArea" style="display: none;">
                     <div class="upload-icon">📁</div>
-                    <h3>Arrastra tu archivo Excel aquí</h3>
-                    <p>o haz clic para seleccionar</p>
-                    <input type="file" id="fileInput" class="file-input" accept=".xlsx,.xls">
+                    <h3 id="uploadTitle">Arrastra tu archivo aquí</h3>
+                    <p id="uploadSubtitle">o haz clic para seleccionar</p>
+                    <input type="file" id="fileInput" class="file-input" accept=".xlsx,.xls,.csv,.json,.xml">
                 </div>
 
                 <div id="templateCreated" style="display: none;">

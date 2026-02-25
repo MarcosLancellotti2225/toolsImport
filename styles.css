@@ -73,7 +73,8 @@ body {
     margin-top: 15px;
 }
 
-.command-btn {
+.command-btn,
+.command-item {
     padding: 15px;
     border: 2px solid #e0e0e0;
     border-radius: 10px;
@@ -84,13 +85,15 @@ body {
     font-size: 0.95em;
 }
 
-.command-btn:hover {
+.command-btn:hover,
+.command-item:hover {
     border-color: #667eea;
     background: #f8f9ff;
     transform: translateY(-2px);
 }
 
-.command-btn.active {
+.command-btn.active,
+.command-item.selected {
     border-color: #667eea;
     background: #667eea;
     color: white;
@@ -580,4 +583,22 @@ font-size: 1em;
     margin-bottom: 8px;
     font-weight: 600;
     color: #333;
+}
+
+/* Format selector cards */
+.format-card:hover {
+    border-color: #667eea !important;
+    background: #f8f9ff !important;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+}
+
+.format-card.selected {
+    border-color: #667eea !important;
+    background: #667eea !important;
+    color: white;
+}
+
+.format-card.selected div {
+    color: white !important;
 }

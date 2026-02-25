@@ -152,19 +152,27 @@
         });
         document.querySelector(`[data-product="${product}"]`).classList.add('selected');
 
-        // Show commands
-        document.querySelectorAll('.commands-list').forEach(list => {
-            list.style.display = 'none';
+        // Show command selection
+        document.getElementById('commandSelection').style.display = 'block';
+        
+        // Generate command buttons dynamically
+        const commandGrid = document.getElementById('commandGrid');
+        commandGrid.innerHTML = '';
+        
+        const productTemplates = templates[product];
+        Object.keys(productTemplates).forEach(cmdKey => {
+            const btn = document.createElement('button');
+            btn.className = 'command-item';
+            btn.dataset.command = cmdKey;
+            btn.textContent = cmdKey;
+            btn.onclick = () => selectCommand(cmdKey);
+            commandGrid.appendChild(btn);
         });
-        document.getElementById(`${product}Commands`).style.display = 'block';
-        document.getElementById('commandSection').style.display = 'block';
-
-        // Setup command selection
-        document.querySelectorAll(`#${product}Commands .command-item`).forEach(item => {
-            item.onclick = () => {
-                const command = item.dataset.command;
-                selectCommand(command);
-            };
+        
+        // Scroll
+        document.getElementById('commandSelection').scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center' 
         });
     }
 
@@ -177,14 +185,23 @@
         });
         document.querySelector(`[data-command="${command}"]`).classList.add('selected');
 
-        // Show options
-        document.getElementById('templateOrExcel').style.display = 'block';
+        // Show columns info
+        const template = getTemplate();
+        const columnsInfo = document.getElementById('columnsInfo');
+        const requiredColumns = document.getElementById('requiredColumns');
         
-        // Scroll
-        document.getElementById('templateOrExcel').scrollIntoView({ 
-            behavior: 'smooth', 
-            block: 'center' 
-        });
+        columnsInfo.style.display = 'block';
+        requiredColumns.textContent = template.columns.join(', ');
+        
+        // Show next step (format selection)
+        const formatStep = document.querySelector('.step:nth-of-type(2)');
+        if (formatStep) {
+            formatStep.style.display = 'block';
+            formatStep.scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'center' 
+            });
+        }
     }
 
     // ============================================
