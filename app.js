@@ -1,6 +1,6 @@
 // ============================================
-// CSV Generator v4.5
-// Multi-format + Multi-sheet + No errors
+// CSV Generator v4.5.1
+// Multi-format + Multi-sheet + Transformations
 // ============================================
 
 (function() {
@@ -26,6 +26,8 @@
         excelColumns: [],
         excelData: [],
         mapping: {},
+        customDefaults: {},      // v4.5.1: valores por defecto del usuario
+        transformations: {},     // v4.5.1: transformaciones aplicadas por columna
         hasHeaderRow: true
     };
 
@@ -616,24 +618,24 @@
 
         template.columns.forEach(reqCol => {
             const tr = document.createElement('tr');
-            
+
             // Columna requerida
             const tdReq = document.createElement('td');
             tdReq.textContent = reqCol;
             tdReq.style.fontWeight = '600';
             tr.appendChild(tdReq);
-            
+
             // Dropdown de mapeo
             const tdMap = document.createElement('td');
             const select = document.createElement('select');
             select.className = 'mapping-select';
             select.dataset.column = reqCol;
-            
+
             const optionEmpty = document.createElement('option');
             optionEmpty.value = '';
             optionEmpty.textContent = '-- Seleccionar --';
             select.appendChild(optionEmpty);
-            
+
             state.excelColumns.forEach(excelCol => {
                 const option = document.createElement('option');
                 option.value = excelCol;
@@ -643,21 +645,53 @@
                 }
                 select.appendChild(option);
             });
-            
+
             tdMap.appendChild(select);
             tr.appendChild(tdMap);
-            
-            // Botón dividir
+
+            // Botón transformar (reemplaza "Dividir")
             const tdAction = document.createElement('td');
-            const btnDiv = document.createElement('button');
-            btnDiv.textContent = '🔀 Dividir';
-            btnDiv.className = 'btn btn-secondary';
-            btnDiv.style.padding = '5px 10px';
-            btnDiv.style.fontSize = '0.9em';
-            btnDiv.onclick = () => openDivisionModal(reqCol);
-            tdAction.appendChild(btnDiv);
+            const btnTransform = document.createElement('button');
+            btnTransform.textContent = '🔧 Transformar';
+            btnTransform.className = 'btn btn-secondary';
+            btnTransform.style.padding = '5px 10px';
+            btnTransform.style.fontSize = '0.9em';
+            btnTransform.onclick = () => openTransformModal(reqCol);
+            tdAction.appendChild(btnTransform);
+
+            // Mostrar badge de transformaciones aplicadas
+            if (state.transformations[reqCol] && state.transformations[reqCol].length > 0) {
+                const badge = document.createElement('span');
+                badge.style.cssText = 'display:inline-block;margin-left:8px;background:#28a745;color:white;padding:2px 8px;border-radius:10px;font-size:0.8em;';
+                badge.textContent = state.transformations[reqCol].length + ' aplicada(s)';
+                tdAction.appendChild(badge);
+            }
+
             tr.appendChild(tdAction);
-            
+
+            // Valor por defecto (editable)
+            const tdDefault = document.createElement('td');
+            const defaultInput = document.createElement('input');
+            defaultInput.type = 'text';
+            defaultInput.className = 'default-value-input';
+            defaultInput.dataset.column = reqCol;
+            defaultInput.placeholder = template.defaults[reqCol] !== undefined ? template.defaults[reqCol] : '';
+            defaultInput.value = state.customDefaults[reqCol] || '';
+            defaultInput.style.cssText = 'width:100%;padding:8px;border:1px solid #e0e0e0;border-radius:5px;font-size:0.9em;';
+
+            if (template.defaults[reqCol] !== undefined && !state.customDefaults[reqCol]) {
+                defaultInput.style.color = '#999';
+            }
+
+            defaultInput.onfocus = function() { this.style.color = '#333'; };
+            defaultInput.oninput = function() {
+                state.customDefaults[reqCol] = this.value;
+                this.style.color = '#333';
+            };
+
+            tdDefault.appendChild(defaultInput);
+            tr.appendChild(tdDefault);
+
             tbody.appendChild(tr);
         });
 
@@ -670,16 +704,29 @@
             const reqCol = select.dataset.column;
             state.mapping[reqCol] = select.value;
         });
-        
+
+        // v4.5.1: Recoger valores por defecto del usuario
+        document.querySelectorAll('.default-value-input').forEach(input => {
+            const reqCol = input.dataset.column;
+            state.customDefaults[reqCol] = input.value.trim();
+        });
+
         updateMappingStatus();
     }
 
     function updateMappingStatus() {
         const template = getTemplate();
         const mapped = template.columns.filter(col => state.mapping[col]).length;
-        const withDefault = template.columns.filter(col => !state.mapping[col] && template.defaults[col] !== undefined).length;
-        const unmapped = template.columns.filter(col => !state.mapping[col] && template.defaults[col] === undefined).length;
-        
+        const withDefault = template.columns.filter(col =>
+            !state.mapping[col] && (state.customDefaults[col] || template.defaults[col] !== undefined)
+        ).length;
+        const unmapped = template.columns.filter(col =>
+            !state.mapping[col] && !state.customDefaults[col] && template.defaults[col] === undefined
+        ).length;
+        const withTransform = template.columns.filter(col =>
+            state.transformations[col] && state.transformations[col].length > 0
+        ).length;
+
         const statusDiv = document.getElementById('mappingStatus');
         statusDiv.innerHTML = `
             <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
@@ -691,6 +738,7 @@
                     <span style="color: #28a745;">✅ Mapeadas: ${mapped}/${template.columns.length}</span>
                     <span style="color: #ffc107;">🔧 Con valor por defecto: ${withDefault}</span>
                     <span style="color: #dc3545;">⚠️ Sin mapear: ${unmapped} (quedarán vacías)</span>
+                    ${withTransform > 0 ? `<span style="color: #667eea;">🔄 Con transformaciones: ${withTransform}</span>` : ''}
                 </div>
             </div>
         `;
@@ -858,28 +906,385 @@
         alert(`✅ División exitosa!\n\nColumnas creadas:\n${newColumns.join('\n')}`);
     }
 
-    // Eventos del modal
+    // Eventos del modal de división
     window.closeDivisionModal = closeDivisionModal;
     window.setDivisionSeparator = setDivisionSeparator;
     window.updateDivisionPreview = updateDivisionPreview;
     window.applyDivision = applyDivision;
 
     // ============================================
+    // MODAL DE TRANSFORMACIONES v4.5.1
+    // ============================================
+    let transformState = {
+        currentColumn: null,       // columna requerida
+        sourceColumn: null,        // columna del archivo mapeada
+        sourceData: [],            // datos originales
+        selectedTransform: null,   // tipo de transformación seleccionada
+        config: {}                 // configuración de la transformación
+    };
+
+    function openTransformModal(columnName) {
+        transformState.currentColumn = columnName;
+        transformState.sourceColumn = state.mapping[columnName];
+        transformState.selectedTransform = null;
+        transformState.config = {};
+
+        if (!transformState.sourceColumn) {
+            alert('⚠️ Primero mapea esta columna a una columna de tu archivo');
+            return;
+        }
+
+        // Obtener datos
+        transformState.sourceData = state.excelData.map(row => row[transformState.sourceColumn] || '');
+
+        // Mostrar modal
+        document.getElementById('transformModal').style.display = 'flex';
+        document.getElementById('transformColumnName').textContent = transformState.sourceColumn;
+
+        // Mostrar datos originales
+        const previewHTML = transformState.sourceData.slice(0, 5).map((val, idx) =>
+            `<div style="padding: 6px; border-bottom: 1px solid #e0e0e0;">
+                <strong>Fila ${idx + 1}:</strong> "${sanitizeHTML(String(val))}"
+            </div>`
+        ).join('');
+        document.getElementById('transformOriginalData').innerHTML = previewHTML;
+
+        // Mostrar transformaciones aplicadas si hay
+        renderAppliedTransforms();
+
+        // Resetear áreas
+        document.getElementById('transformConfigArea').style.display = 'none';
+        document.getElementById('transformPreviewArea').style.display = 'none';
+        document.getElementById('transformNamingSection').style.display = 'none';
+        document.getElementById('applyTransformBtn').disabled = true;
+        document.getElementById('applyTransformBtn').style.opacity = '0.5';
+
+        // Deseleccionar botones
+        document.querySelectorAll('.transform-option-btn').forEach(b => b.classList.remove('selected'));
+    }
+
+    function closeTransformModal() {
+        document.getElementById('transformModal').style.display = 'none';
+    }
+
+    function renderAppliedTransforms() {
+        const col = transformState.currentColumn;
+        const transforms = state.transformations[col] || [];
+
+        const listDiv = document.getElementById('appliedTransformsList');
+        const contentDiv = document.getElementById('appliedTransformsContent');
+        const clearBtn = document.getElementById('clearTransformsBtn');
+
+        if (transforms.length === 0) {
+            listDiv.style.display = 'none';
+            clearBtn.style.display = 'none';
+            return;
+        }
+
+        listDiv.style.display = 'block';
+        clearBtn.style.display = 'inline-block';
+
+        const labels = {
+            uppercase: '🔠 MAYÚSCULAS',
+            lowercase: '🔡 minúsculas',
+            titlecase: '🔤 Título',
+            trim: '🧹 Limpiar espacios',
+            prefix: '➡️ Prefijo',
+            suffix: '⬅️ Sufijo',
+            replace: '🔄 Reemplazar',
+            removeSpecial: '🚫 Quitar especiales'
+        };
+
+        contentDiv.innerHTML = transforms.map((t, idx) => {
+            let detail = '';
+            if (t.type === 'prefix') detail = ` → "${sanitizeHTML(t.value)}"`;
+            if (t.type === 'suffix') detail = ` → "${sanitizeHTML(t.value)}"`;
+            if (t.type === 'replace') detail = ` → "${sanitizeHTML(t.find)}" → "${sanitizeHTML(t.replaceWith)}"`;
+            return `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #c8e6c9;">
+                <span>${labels[t.type] || t.type}${detail}</span>
+                <button onclick="removeTransform(${idx})" style="background:#dc3545;color:white;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:0.8em;">✖</button>
+            </div>`;
+        }).join('');
+    }
+
+    function removeTransform(idx) {
+        const col = transformState.currentColumn;
+        state.transformations[col].splice(idx, 1);
+        renderAppliedTransforms();
+        renderMappingTable();
+    }
+
+    function clearTransformations() {
+        const col = transformState.currentColumn;
+        state.transformations[col] = [];
+        renderAppliedTransforms();
+        renderMappingTable();
+    }
+
+    function selectTransform(type) {
+        transformState.selectedTransform = type;
+
+        // Marcar botón seleccionado
+        document.querySelectorAll('.transform-option-btn').forEach(b => b.classList.remove('selected'));
+        event.currentTarget.classList.add('selected');
+
+        // Si es "divide", abrir el modal de división directamente
+        if (type === 'divide') {
+            closeTransformModal();
+            openDivisionModal(transformState.currentColumn);
+            return;
+        }
+
+        // Mostrar configuración según tipo
+        const configArea = document.getElementById('transformConfigArea');
+        const configTitle = document.getElementById('transformConfigTitle');
+        const configContent = document.getElementById('transformConfigContent');
+        configArea.style.display = 'block';
+
+        switch (type) {
+            case 'uppercase':
+                configTitle.textContent = '🔠 Convertir a MAYÚSCULAS';
+                configContent.innerHTML = '<p style="color:#666;">Se convertirá todo el texto a mayúsculas.</p>';
+                enableTransformApply();
+                showTransformPreview(type);
+                break;
+
+            case 'lowercase':
+                configTitle.textContent = '🔡 Convertir a minúsculas';
+                configContent.innerHTML = '<p style="color:#666;">Se convertirá todo el texto a minúsculas.</p>';
+                enableTransformApply();
+                showTransformPreview(type);
+                break;
+
+            case 'titlecase':
+                configTitle.textContent = '🔤 Convertir a Título';
+                configContent.innerHTML = '<p style="color:#666;">Primera letra de cada palabra en mayúscula.</p>';
+                enableTransformApply();
+                showTransformPreview(type);
+                break;
+
+            case 'trim':
+                configTitle.textContent = '🧹 Limpiar espacios';
+                configContent.innerHTML = '<p style="color:#666;">Se eliminarán espacios al inicio, al final y espacios dobles internos.</p>';
+                enableTransformApply();
+                showTransformPreview(type);
+                break;
+
+            case 'prefix':
+                configTitle.textContent = '➡️ Agregar Prefijo';
+                configContent.innerHTML = `
+                    <input type="text" id="transformPrefixInput" placeholder="Texto a agregar al inicio..."
+                        style="width:100%;padding:12px;border:2px solid #667eea;border-radius:8px;font-size:1.1em;font-family:monospace;"
+                        oninput="onTransformConfigChange('prefix')">
+                `;
+                disableTransformApply();
+                break;
+
+            case 'suffix':
+                configTitle.textContent = '⬅️ Agregar Sufijo';
+                configContent.innerHTML = `
+                    <input type="text" id="transformSuffixInput" placeholder="Texto a agregar al final..."
+                        style="width:100%;padding:12px;border:2px solid #667eea;border-radius:8px;font-size:1.1em;font-family:monospace;"
+                        oninput="onTransformConfigChange('suffix')">
+                `;
+                disableTransformApply();
+                break;
+
+            case 'replace':
+                configTitle.textContent = '🔄 Buscar y Reemplazar';
+                configContent.innerHTML = `
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                        <div>
+                            <label style="display:block;margin-bottom:5px;font-weight:600;">Buscar:</label>
+                            <input type="text" id="transformFindInput" placeholder="Texto a buscar..."
+                                style="width:100%;padding:10px;border:2px solid #667eea;border-radius:8px;font-family:monospace;"
+                                oninput="onTransformConfigChange('replace')">
+                        </div>
+                        <div>
+                            <label style="display:block;margin-bottom:5px;font-weight:600;">Reemplazar con:</label>
+                            <input type="text" id="transformReplaceInput" placeholder="Texto de reemplazo..."
+                                style="width:100%;padding:10px;border:2px solid #667eea;border-radius:8px;font-family:monospace;"
+                                oninput="onTransformConfigChange('replace')">
+                        </div>
+                    </div>
+                `;
+                disableTransformApply();
+                break;
+
+            case 'removeSpecial':
+                configTitle.textContent = '🚫 Quitar caracteres especiales';
+                configContent.innerHTML = '<p style="color:#666;">Se eliminarán todos los caracteres que no sean letras, números o espacios.</p>';
+                enableTransformApply();
+                showTransformPreview(type);
+                break;
+        }
+    }
+
+    function onTransformConfigChange(type) {
+        switch (type) {
+            case 'prefix': {
+                const val = document.getElementById('transformPrefixInput').value;
+                if (val) {
+                    transformState.config = { value: val };
+                    enableTransformApply();
+                    showTransformPreview('prefix');
+                } else {
+                    disableTransformApply();
+                    document.getElementById('transformPreviewArea').style.display = 'none';
+                }
+                break;
+            }
+            case 'suffix': {
+                const val = document.getElementById('transformSuffixInput').value;
+                if (val) {
+                    transformState.config = { value: val };
+                    enableTransformApply();
+                    showTransformPreview('suffix');
+                } else {
+                    disableTransformApply();
+                    document.getElementById('transformPreviewArea').style.display = 'none';
+                }
+                break;
+            }
+            case 'replace': {
+                const find = document.getElementById('transformFindInput').value;
+                const replaceWith = document.getElementById('transformReplaceInput').value;
+                if (find) {
+                    transformState.config = { find, replaceWith: replaceWith || '' };
+                    enableTransformApply();
+                    showTransformPreview('replace');
+                } else {
+                    disableTransformApply();
+                    document.getElementById('transformPreviewArea').style.display = 'none';
+                }
+                break;
+            }
+        }
+    }
+
+    function applyTransformToValue(value, transform) {
+        let v = String(value);
+        switch (transform.type) {
+            case 'uppercase':
+                return v.toUpperCase();
+            case 'lowercase':
+                return v.toLowerCase();
+            case 'titlecase':
+                return v.toLowerCase().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+            case 'trim':
+                return v.trim().replace(/\s+/g, ' ');
+            case 'prefix':
+                return transform.value + v;
+            case 'suffix':
+                return v + transform.value;
+            case 'replace':
+                return v.split(transform.find).join(transform.replaceWith);
+            case 'removeSpecial':
+                return v.replace(/[^a-zA-Z0-9\sáéíóúÁÉÍÓÚñÑüÜ]/g, '');
+            default:
+                return v;
+        }
+    }
+
+    function showTransformPreview(type) {
+        const previewArea = document.getElementById('transformPreviewArea');
+        const previewContent = document.getElementById('transformLivePreview');
+        previewArea.style.display = 'block';
+
+        const transform = { type, ...transformState.config };
+
+        // Calcular el valor acumulado con transformaciones previas + la nueva
+        const col = transformState.currentColumn;
+        const existingTransforms = state.transformations[col] || [];
+
+        const previewHTML = transformState.sourceData.slice(0, 5).map((val, idx) => {
+            // Aplicar transformaciones existentes primero
+            let current = String(val);
+            existingTransforms.forEach(t => {
+                current = applyTransformToValue(current, t);
+            });
+            const before = current;
+            // Aplicar la nueva transformación
+            const after = applyTransformToValue(current, transform);
+
+            return `<div style="padding:8px;border-bottom:1px solid #c8e6c9;">
+                <strong>Fila ${idx + 1}:</strong> "${sanitizeHTML(before)}" → "<strong style="color:#28a745;">${sanitizeHTML(after)}</strong>"
+            </div>`;
+        }).join('');
+
+        previewContent.innerHTML = previewHTML;
+    }
+
+    function enableTransformApply() {
+        document.getElementById('applyTransformBtn').disabled = false;
+        document.getElementById('applyTransformBtn').style.opacity = '1';
+    }
+
+    function disableTransformApply() {
+        document.getElementById('applyTransformBtn').disabled = true;
+        document.getElementById('applyTransformBtn').style.opacity = '0.5';
+    }
+
+    function applyCurrentTransform() {
+        const type = transformState.selectedTransform;
+        if (!type) return;
+
+        const col = transformState.currentColumn;
+        if (!state.transformations[col]) {
+            state.transformations[col] = [];
+        }
+
+        const transform = { type, ...transformState.config };
+        state.transformations[col].push(transform);
+
+        // Resetear UI del modal
+        transformState.selectedTransform = null;
+        transformState.config = {};
+        document.querySelectorAll('.transform-option-btn').forEach(b => b.classList.remove('selected'));
+        document.getElementById('transformConfigArea').style.display = 'none';
+        document.getElementById('transformPreviewArea').style.display = 'none';
+        disableTransformApply();
+
+        // Refrescar lista de aplicadas
+        renderAppliedTransforms();
+        renderMappingTable();
+    }
+
+    // Eventos del modal de transformaciones
+    window.openTransformModal = openTransformModal;
+    window.closeTransformModal = closeTransformModal;
+    window.selectTransform = selectTransform;
+    window.onTransformConfigChange = onTransformConfigChange;
+    window.applyCurrentTransform = applyCurrentTransform;
+    window.removeTransform = removeTransform;
+    window.clearTransformations = clearTransformations;
+
+    // ============================================
     // PREVIEW Y GENERACIÓN
     // ============================================
     function generatePreview() {
         const template = getTemplate();
-        
+
         // Generar CSV data
         const csvData = state.excelData.map(row => {
             const csvRow = {};
             template.columns.forEach(col => {
                 if (state.mapping[col]) {
                     csvRow[col] = row[state.mapping[col]] || '';
+                } else if (state.customDefaults[col]) {
+                    // v4.5.1: Prioridad a custom defaults del usuario
+                    csvRow[col] = state.customDefaults[col];
                 } else if (template.defaults[col] !== undefined) {
                     csvRow[col] = template.defaults[col];
                 } else {
                     csvRow[col] = '';
+                }
+
+                // v4.5.1: Aplicar transformaciones
+                if (state.transformations[col] && state.transformations[col].length > 0) {
+                    state.transformations[col].forEach(t => {
+                        csvRow[col] = applyTransformToValue(csvRow[col], t);
+                    });
                 }
             });
             return csvRow;

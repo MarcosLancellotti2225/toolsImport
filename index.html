@@ -8,7 +8,7 @@
     <!-- 
     ╔════════════════════════════════════════╗
     ║  CSV Generator for CLI - Signaturit   ║
-    ║  Version: 4.1.1                        ║
+    ║  Version: 4.5.1                        ║
     ║  Last Updated: 2025-02-25              ║
     ║  Products: IvSign + IvNeos             ║
     ║  Features: Multi-format INTEGRADO    ║
@@ -37,7 +37,7 @@
                 </div>
                 <div class="version-badge">
                     <span class="version-label">Version</span>
-                    <span class="version-number">4.5</span>
+                    <span class="version-number">4.5.1</span>
                 </div>
             </div>
         </div>
@@ -285,7 +285,7 @@
                             <tr>
                                 <th>Columna Requerida (CSV)</th>
                                 <th>Columna de tu Excel</th>
-                                <th>Dividir</th>
+                                <th>Transformar</th>
                                 <th>Valor por defecto (opcional)</th>
                             </tr>
                         </thead>
@@ -347,85 +347,156 @@
             </div>
         </div>
     </div>
-<!-- MODAL CONSTRUCTOR v3.0 -->
-<!-- MODAL DIVISIÓN SIMPLE v3.1 -->
-<div id="divisionModal" class="modal" style="display: none;">
-    <div class="modal-content" style="max-width: 700px;">
+<!-- MODAL TRANSFORMACIONES v4.5.1 -->
+<div id="transformModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 750px;">
         <div class="modal-header">
-            <h2>🔀 Dividir Columna: <span id="divisionColumnName"></span></h2>
-            <button class="modal-close" onclick="closeDivisionModal()">✖</button>
+            <h2>🔧 Transformar: <span id="transformColumnName"></span></h2>
+            <button class="modal-close" onclick="closeTransformModal()">✖</button>
         </div>
-        
+
         <div class="modal-body">
             <!-- Datos originales -->
             <div style="margin-bottom: 20px;">
-                <h3 style="color: #667eea; margin-bottom: 10px;">📊 TUS DATOS ORIGINALES:</h3>
-                <div id="originalData" style="background: #f8f9ff; padding: 15px; border-radius: 8px; border: 2px solid #667eea; font-family: monospace; font-size: 0.95em; line-height: 1.8;">
-                    <!-- Se llenará dinámicamente -->
+                <h3 style="color: #667eea; margin-bottom: 10px;">📊 DATOS ORIGINALES (primeras 5 filas):</h3>
+                <div id="transformOriginalData" style="background: #f8f9ff; padding: 15px; border-radius: 8px; border: 2px solid #667eea; font-family: monospace; font-size: 0.95em; line-height: 1.8;">
                 </div>
             </div>
 
-            <!-- Separador -->
+            <!-- Transformaciones aplicadas -->
+            <div id="appliedTransformsList" style="display:none; margin-bottom: 20px;">
+                <h3 style="color: #28a745; margin-bottom: 10px;">✅ Transformaciones aplicadas:</h3>
+                <div id="appliedTransformsContent" style="background: #e8f5e9; padding: 15px; border-radius: 8px; border: 2px solid #28a745;"></div>
+            </div>
+
+            <!-- Selector de transformación -->
+            <div style="margin-bottom: 20px;">
+                <h3 style="color: #667eea; margin-bottom: 10px;">🔧 Selecciona una transformación:</h3>
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px;">
+                    <button class="transform-option-btn" onclick="selectTransform('divide')" style="padding: 12px; border: 2px solid #e0e0e0; border-radius: 10px; background: white; cursor: pointer; text-align: center; transition: all 0.3s;">
+                        <div style="font-size: 1.5em;">✂️</div>
+                        <div style="font-weight: 600; font-size: 0.9em;">Dividir</div>
+                        <div style="font-size: 0.75em; color: #666;">Separar en partes</div>
+                    </button>
+                    <button class="transform-option-btn" onclick="selectTransform('uppercase')" style="padding: 12px; border: 2px solid #e0e0e0; border-radius: 10px; background: white; cursor: pointer; text-align: center; transition: all 0.3s;">
+                        <div style="font-size: 1.5em;">🔠</div>
+                        <div style="font-weight: 600; font-size: 0.9em;">MAYÚSCULAS</div>
+                        <div style="font-size: 0.75em; color: #666;">Todo a mayúsculas</div>
+                    </button>
+                    <button class="transform-option-btn" onclick="selectTransform('lowercase')" style="padding: 12px; border: 2px solid #e0e0e0; border-radius: 10px; background: white; cursor: pointer; text-align: center; transition: all 0.3s;">
+                        <div style="font-size: 1.5em;">🔡</div>
+                        <div style="font-weight: 600; font-size: 0.9em;">minúsculas</div>
+                        <div style="font-size: 0.75em; color: #666;">Todo a minúsculas</div>
+                    </button>
+                    <button class="transform-option-btn" onclick="selectTransform('titlecase')" style="padding: 12px; border: 2px solid #e0e0e0; border-radius: 10px; background: white; cursor: pointer; text-align: center; transition: all 0.3s;">
+                        <div style="font-size: 1.5em;">🔤</div>
+                        <div style="font-weight: 600; font-size: 0.9em;">Título</div>
+                        <div style="font-size: 0.75em; color: #666;">Primera En Mayúscula</div>
+                    </button>
+                    <button class="transform-option-btn" onclick="selectTransform('trim')" style="padding: 12px; border: 2px solid #e0e0e0; border-radius: 10px; background: white; cursor: pointer; text-align: center; transition: all 0.3s;">
+                        <div style="font-size: 1.5em;">🧹</div>
+                        <div style="font-weight: 600; font-size: 0.9em;">Limpiar espacios</div>
+                        <div style="font-size: 0.75em; color: #666;">Trim + espacios extra</div>
+                    </button>
+                    <button class="transform-option-btn" onclick="selectTransform('prefix')" style="padding: 12px; border: 2px solid #e0e0e0; border-radius: 10px; background: white; cursor: pointer; text-align: center; transition: all 0.3s;">
+                        <div style="font-size: 1.5em;">➡️</div>
+                        <div style="font-weight: 600; font-size: 0.9em;">Prefijo</div>
+                        <div style="font-size: 0.75em; color: #666;">Agregar al inicio</div>
+                    </button>
+                    <button class="transform-option-btn" onclick="selectTransform('suffix')" style="padding: 12px; border: 2px solid #e0e0e0; border-radius: 10px; background: white; cursor: pointer; text-align: center; transition: all 0.3s;">
+                        <div style="font-size: 1.5em;">⬅️</div>
+                        <div style="font-weight: 600; font-size: 0.9em;">Sufijo</div>
+                        <div style="font-size: 0.75em; color: #666;">Agregar al final</div>
+                    </button>
+                    <button class="transform-option-btn" onclick="selectTransform('replace')" style="padding: 12px; border: 2px solid #e0e0e0; border-radius: 10px; background: white; cursor: pointer; text-align: center; transition: all 0.3s;">
+                        <div style="font-size: 1.5em;">🔄</div>
+                        <div style="font-weight: 600; font-size: 0.9em;">Reemplazar</div>
+                        <div style="font-size: 0.75em; color: #666;">Buscar y reemplazar</div>
+                    </button>
+                    <button class="transform-option-btn" onclick="selectTransform('removeSpecial')" style="padding: 12px; border: 2px solid #e0e0e0; border-radius: 10px; background: white; cursor: pointer; text-align: center; transition: all 0.3s;">
+                        <div style="font-size: 1.5em;">🚫</div>
+                        <div style="font-weight: 600; font-size: 0.9em;">Quitar especiales</div>
+                        <div style="font-size: 0.75em; color: #666;">Solo letras y números</div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Área de configuración de la transformación -->
+            <div id="transformConfigArea" style="display: none; margin-bottom: 20px;">
+                <h3 id="transformConfigTitle" style="color: #667eea; margin-bottom: 10px;"></h3>
+                <div id="transformConfigContent"></div>
+            </div>
+
+            <!-- Preview en vivo -->
+            <div id="transformPreviewArea" style="display: none; margin-bottom: 20px;">
+                <h3 style="color: #28a745; margin-bottom: 10px;">👁️ PREVIEW:</h3>
+                <div id="transformLivePreview" style="background: #e8f5e9; padding: 15px; border-radius: 8px; border: 2px solid #28a745; font-family: monospace; font-size: 0.95em; min-height: 60px;"></div>
+            </div>
+
+            <!-- Sección de nombrar partes (solo para dividir) -->
+            <div id="transformNamingSection" style="display: none; margin-bottom: 20px;">
+                <h3 style="color: #667eea; margin-bottom: 10px;">✏️ Nombra cada parte:</h3>
+                <div id="transformNamingInputs" style="display: flex; flex-direction: column; gap: 10px;"></div>
+            </div>
+
+            <!-- Botones -->
+            <div style="display: flex; gap: 10px;">
+                <button class="btn btn-primary" onclick="applyCurrentTransform()" id="applyTransformBtn" disabled style="flex: 1; background: #28a745; opacity: 0.5;">
+                    ✅ Aplicar Transformación
+                </button>
+                <button class="btn btn-primary" onclick="clearTransformations()" id="clearTransformsBtn" style="background: #dc3545; display: none;">
+                    🗑️ Limpiar todo
+                </button>
+                <button class="btn btn-primary" onclick="closeTransformModal()" style="background: #6c757d;">
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL DIVISIÓN (sub-modal, se abre desde transform) -->
+<div id="divisionModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 700px;">
+        <div class="modal-header">
+            <h2>✂️ Dividir Columna: <span id="divisionColumnName"></span></h2>
+            <button class="modal-close" onclick="closeDivisionModal()">✖</button>
+        </div>
+
+        <div class="modal-body">
+            <div style="margin-bottom: 20px;">
+                <h3 style="color: #667eea; margin-bottom: 10px;">📊 TUS DATOS ORIGINALES:</h3>
+                <div id="originalData" style="background: #f8f9ff; padding: 15px; border-radius: 8px; border: 2px solid #667eea; font-family: monospace; font-size: 0.95em; line-height: 1.8;"></div>
+            </div>
+
             <div style="margin-bottom: 20px;">
                 <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #333; font-size: 1.1em;">
                     ✂️ ¿Con qué separar?
                 </label>
-                
-                <!-- Botones rápidos -->
                 <div style="display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap;">
-                    <button onclick="setDivisionSeparator(', ')" class="btn btn-primary" style="padding: 8px 15px; font-size: 0.9em; background: #28a745;">
-                        , (coma + espacio)
-                    </button>
-                    <button onclick="setDivisionSeparator(',')" class="btn btn-primary" style="padding: 8px 15px; font-size: 0.9em; background: #6c757d;">
-                        , (solo coma)
-                    </button>
-                    <button onclick="setDivisionSeparator(' ')" class="btn btn-primary" style="padding: 8px 15px; font-size: 0.9em; background: #6c757d;">
-                        (espacio)
-                    </button>
-                    <button onclick="setDivisionSeparator(';')" class="btn btn-primary" style="padding: 8px 15px; font-size: 0.9em; background: #6c757d;">
-                        ; (punto y coma)
-                    </button>
-                    <button onclick="setDivisionSeparator('-')" class="btn btn-primary" style="padding: 8px 15px; font-size: 0.9em; background: #6c757d;">
-                        - (guión)
-                    </button>
+                    <button onclick="setDivisionSeparator(', ')" class="btn btn-primary" style="padding: 8px 15px; font-size: 0.9em; background: #28a745;">, (coma + espacio)</button>
+                    <button onclick="setDivisionSeparator(',')" class="btn btn-primary" style="padding: 8px 15px; font-size: 0.9em; background: #6c757d;">, (solo coma)</button>
+                    <button onclick="setDivisionSeparator(' ')" class="btn btn-primary" style="padding: 8px 15px; font-size: 0.9em; background: #6c757d;">(espacio)</button>
+                    <button onclick="setDivisionSeparator(';')" class="btn btn-primary" style="padding: 8px 15px; font-size: 0.9em; background: #6c757d;">; (punto y coma)</button>
+                    <button onclick="setDivisionSeparator('-')" class="btn btn-primary" style="padding: 8px 15px; font-size: 0.9em; background: #6c757d;">- (guión)</button>
                 </div>
-                
-                <input 
-                    type="text" 
-                    id="separatorInput" 
-                    placeholder="O escribe tu propio separador..."
+                <input type="text" id="separatorInput" placeholder="O escribe tu propio separador..."
                     style="width: 100%; padding: 12px; border: 2px solid #667eea; border-radius: 8px; font-size: 1.1em; font-family: monospace;"
                     oninput="updateDivisionPreview()">
-                <small style="color: #666; display: block; margin-top: 5px;">
-                    💡 <strong>Tip:</strong> Para nombres como "APELLIDO, NOMBRE" usa <code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px;">, </code> (coma + espacio)
-                </small>
             </div>
 
-            <!-- Preview en vivo -->
             <div style="margin-bottom: 20px;">
-                <h3 style="color: #28a745; margin-bottom: 10px;">👁️ CÓMO QUEDA (preview automático):</h3>
+                <h3 style="color: #28a745; margin-bottom: 10px;">👁️ PREVIEW:</h3>
                 <div id="livePreview" style="background: #e8f5e9; padding: 15px; border-radius: 8px; border: 2px solid #28a745; font-family: monospace; font-size: 0.95em; min-height: 80px;">
                     <span style="color: #999;">Escribe un separador arriba para ver el preview...</span>
                 </div>
             </div>
 
-            <!-- Nombrar partes -->
             <div id="namingSection" style="display: none; margin-bottom: 20px;">
                 <h3 style="color: #667eea; margin-bottom: 10px;">✏️ Nombra cada parte:</h3>
-                <div id="namingInputs" style="display: flex; flex-direction: column; gap: 10px;">
-                    <!-- Se llenará dinámicamente -->
-                </div>
+                <div id="namingInputs" style="display: flex; flex-direction: column; gap: 10px;"></div>
             </div>
 
-            <!-- Columnas que se crearán -->
-            <div id="newColumnsSection" style="display: none; margin-bottom: 20px;">
-                <h3 style="color: #2196f3; margin-bottom: 10px;">✅ Se crearán estas columnas:</h3>
-                <div id="newColumnsList" style="background: #e3f2fd; padding: 15px; border-radius: 8px; border: 2px solid #2196f3;">
-                    <!-- Se llenará dinámicamente -->
-                </div>
-            </div>
-
-            <!-- Botones -->
             <div style="display: flex; gap: 10px;">
                 <button class="btn btn-primary" onclick="applyDivision()" id="applyBtn" disabled style="flex: 1; background: #28a745; opacity: 0.5;">
                     ✅ Aplicar División
