@@ -8,15 +8,24 @@
     <!-- 
     ╔════════════════════════════════════════╗
     ║  CSV Generator for CLI - Signaturit   ║
-    ║  Version: 3.2.0                        ║
+    ║  Version: 4.0.0                        ║
     ║  Last Updated: 2025-02-25              ║
     ║  Products: IvSign + IvNeos             ║
-    ║  Feature: Auto-detect separator        ║
+    ║  Features: Multi-format + Transform    ║
     ╚════════════════════════════════════════╝
     -->
     
     <link rel="stylesheet" href="styles.css">
+    
+    <!-- XLSX -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <!-- PapaParse para CSV -->
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5/papaparse.min.js"></script>
+    
+    <!-- Módulos v4.0.0 -->
+    <script src="formatLoaders.js"></script>
+    <script src="transformations.js"></script>
 </head>
 <body>
     <div class="container">
@@ -28,7 +37,7 @@
                 </div>
                 <div class="version-badge">
                     <span class="version-label">Version</span>
-                    <span class="version-number">3.2.0</span>
+                    <span class="version-number">4.0.0</span>
                 </div>
             </div>
         </div>

@@ -1,4 +1,4 @@
-        const COMMAND_TEMPLATES = {
+const COMMAND_TEMPLATES = {
             // IvSign Commands
             'users-add': {
                 product: 'ivsign',
