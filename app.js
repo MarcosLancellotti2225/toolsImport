@@ -313,7 +313,35 @@
     // CARGA DE ARCHIVOS (MULTI-FORMATO)
     // ============================================
     function setupFileUpload() {
-        document.getElementById('fileInput').onchange = (e) => {
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+
+        // Click en el area abre el selector de archivo
+        uploadArea.onclick = () => {
+            fileInput.click();
+        };
+
+        // Drag & drop
+        uploadArea.ondragover = (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        };
+
+        uploadArea.ondragleave = () => {
+            uploadArea.classList.remove('dragover');
+        };
+
+        uploadArea.ondrop = (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file) {
+                handleFileUpload(file);
+            }
+        };
+
+        // File input change
+        fileInput.onchange = (e) => {
             const file = e.target.files[0];
             if (file) {
                 handleFileUpload(file);
