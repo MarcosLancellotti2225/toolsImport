@@ -150,16 +150,35 @@
         document.querySelectorAll('.product-card').forEach(card => {
             card.classList.remove('selected');
         });
-        document.querySelector(`[data-product="${product}"]`).classList.add('selected');
+        const selectedCard = document.querySelector(`[data-product="${product}"]`);
+        if (selectedCard) {
+            selectedCard.classList.add('selected');
+        }
 
         // Show command selection
-        document.getElementById('commandSelection').style.display = 'block';
+        const commandSelection = document.getElementById('commandSelection');
+        if (!commandSelection) {
+            console.error('❌ ERROR: commandSelection element not found in HTML');
+            alert('Error: Falta el elemento commandSelection en el HTML. Verifica que hayas actualizado index.html correctamente.');
+            return;
+        }
+        commandSelection.style.display = 'block';
         
         // Generate command buttons dynamically
         const commandGrid = document.getElementById('commandGrid');
+        if (!commandGrid) {
+            console.error('❌ ERROR: commandGrid element not found in HTML');
+            alert('Error: Falta el elemento commandGrid en el HTML. Verifica que hayas actualizado index.html correctamente.');
+            return;
+        }
         commandGrid.innerHTML = '';
         
         const productTemplates = templates[product];
+        if (!productTemplates) {
+            console.error('❌ ERROR: No templates found for product:', product);
+            return;
+        }
+        
         Object.keys(productTemplates).forEach(cmdKey => {
             const btn = document.createElement('button');
             btn.className = 'command-item';
@@ -170,7 +189,7 @@
         });
         
         // Scroll
-        document.getElementById('commandSelection').scrollIntoView({ 
+        commandSelection.scrollIntoView({ 
             behavior: 'smooth', 
             block: 'center' 
         });
@@ -183,21 +202,26 @@
         document.querySelectorAll('.command-item').forEach(item => {
             item.classList.remove('selected');
         });
-        document.querySelector(`[data-command="${command}"]`).classList.add('selected');
+        const selectedItem = document.querySelector(`[data-command="${command}"]`);
+        if (selectedItem) {
+            selectedItem.classList.add('selected');
+        }
 
         // Show columns info
         const template = getTemplate();
         const columnsInfo = document.getElementById('columnsInfo');
         const requiredColumns = document.getElementById('requiredColumns');
         
-        columnsInfo.style.display = 'block';
-        requiredColumns.textContent = template.columns.join(', ');
+        if (columnsInfo && requiredColumns) {
+            columnsInfo.style.display = 'block';
+            requiredColumns.textContent = template.columns.join(', ');
+        }
         
         // Show next step (format selection)
-        const formatStep = document.querySelector('.step:nth-of-type(2)');
-        if (formatStep) {
-            formatStep.style.display = 'block';
-            formatStep.scrollIntoView({ 
+        const steps = document.querySelectorAll('.step');
+        if (steps.length >= 2) {
+            steps[1].style.display = 'block';
+            steps[1].scrollIntoView({ 
                 behavior: 'smooth', 
                 block: 'center' 
             });
