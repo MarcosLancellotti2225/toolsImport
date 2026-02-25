@@ -1,4 +1,4 @@
-        // Definición de templates de comandos
+// Definición de templates de comandos
         const COMMAND_TEMPLATES = {
             // IvSign Commands
             'users-add': {
@@ -115,12 +115,12 @@
             
             // Cargar logos desde la carpeta images
             ivSignImg.src = 'images/ivsign-logo.png';
-            ivNeosImg.src = 'images/ivneos-logo.png';
+            ivNeosImg.src = 'images/ivneos-logo(1).png';
             
             ivSignImg.style.width = '100%';
-            ivSignImg.style.maxWidth = '250px';
+            ivSignImg.style.maxWidth = '350px';
             ivNeosImg.style.width = '100%';
-            ivNeosImg.style.maxWidth = '250px';
+            ivNeosImg.style.maxWidth = '350px';
         }
 
         // Seleccionar producto

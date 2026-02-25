@@ -1,4 +1,4 @@
-        * {
+* {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
@@ -292,18 +292,19 @@
         }
 
         .product-logo {
-            min-height: 100px;
+            min-height: 120px;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 20px;
+            padding: 30px;
         }
 
         .product-logo img {
-            max-width: 250px;
-            max-height: 80px;
+            max-width: 350px;
+            max-height: 120px;
             width: auto;
             height: auto;
+            object-fit: contain;
         }
 
         .header-option {
