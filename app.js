@@ -685,16 +685,24 @@
 
         // Inicializar
 
-        // ==========================================
-        // SISTEMA DE TRANSFORMACIONES
-        // ==========================================
-
+        // Variables globales para transformaciones
         let currentTransformColumn = null;
+        let currentExcelColumn = null;
         let transformations = {}; // Guarda las transformaciones aplicadas
 
         // Abrir modal de transformaciones (hacer global para onclick)
         window.openTransformModal = function(columnName, excelColumn) {
             currentTransformColumn = columnName;
+            
+            // Obtener la columna Excel actual del select
+            const select = document.querySelector(`select.column-mapping[data-required="${columnName}"]`);
+            currentExcelColumn = select ? select.value : excelColumn;
+            
+            if (!currentExcelColumn) {
+                alert('⚠️ Primero debes mapear una columna de tu Excel antes de transformarla');
+                return;
+            }
+            
             document.getElementById('transformColumnName').textContent = columnName;
             document.getElementById('transformModal').style.display = 'flex';
             
@@ -808,13 +816,14 @@
         function getSampleDataForColumn(columnName) {
             if (!state.excelData || state.excelData.length === 0) return [];
             
-            const mappedColumn = state.mapping[columnName];
-            if (!mappedColumn) return [];
+            // Usar currentExcelColumn directamente (ya fue validado en openTransformModal)
+            const excelColumn = currentExcelColumn;
+            if (!excelColumn) return [];
             
-            const columnIndex = state.excelColumns.indexOf(mappedColumn);
+            const columnIndex = state.excelColumns.indexOf(excelColumn);
             if (columnIndex === -1) return [];
             
-            return state.excelData.slice(0, 3).map(row => row[columnIndex]);
+            return state.excelData.slice(0, 3).map(row => row[columnIndex] || '');
         }
 
         // Aplicar división
