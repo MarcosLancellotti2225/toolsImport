@@ -1,10 +1,19 @@
 // ============================================
-// CSV Generator v4.1.0
+// CSV Generator v4.1.1
 // Multi-format + Multi-sheet + No errors
 // ============================================
 
 (function() {
     'use strict';
+
+    // ============================================
+    // UTILIDADES
+    // ============================================
+    function sanitizeHTML(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
 
     // ============================================
     // ESTADO GLOBAL
@@ -217,13 +226,12 @@
             requiredColumns.textContent = template.columns.join(', ');
         }
         
-        // Show next step (format selection)
+        // Show next step (create/load file)
         const steps = document.querySelectorAll('.step');
-        if (steps.length >= 2) {
-            steps[1].style.display = 'block';
-            steps[1].scrollIntoView({ 
-                behavior: 'smooth', 
-                block: 'center' 
+        if (steps.length >= 3) {
+            steps[2].scrollIntoView({
+                behavior: 'smooth',
+                block: 'center'
             });
         }
     }
@@ -279,17 +287,12 @@
         document.querySelector(`[data-format="${format}"]`).classList.add('selected');
 
         // Show/hide format options
-        document.querySelectorAll('.format-options').forEach(opt => {
-            opt.style.display = 'none';
-        });
-        
-        document.getElementById('formatOptions').style.display = 'none';
-        
+        document.getElementById('csvOptions').style.display = 'none';
+        document.getElementById('xmlOptions').style.display = 'none';
+
         if (format === 'csv') {
-            document.getElementById('formatOptions').style.display = 'block';
             document.getElementById('csvOptions').style.display = 'block';
         } else if (format === 'xml') {
-            document.getElementById('formatOptions').style.display = 'block';
             document.getElementById('xmlOptions').style.display = 'block';
         }
 
@@ -302,9 +305,8 @@
         };
         document.getElementById('fileInput').accept = accepts[format];
 
-        // Show upload button
-        document.getElementById('uploadBtn').style.display = 'block';
-        document.getElementById('noFormatSelected').style.display = 'none';
+        // Show upload area
+        document.getElementById('uploadArea').style.display = 'block';
     }
 
     // ============================================
@@ -549,6 +551,16 @@
         // Actualizar UI
         renderMappingTable();
         
+        // Setup manual mapping toggle button
+        document.getElementById('manualMappingBtn').onclick = () => {
+            const details = document.getElementById('mappingDetails');
+            if (details.style.display === 'none') {
+                details.style.display = 'block';
+            } else {
+                details.style.display = 'none';
+            }
+        };
+
         // Setup apply button
         document.getElementById('applyMappingBtn').onclick = () => {
             updateMapping();
@@ -556,9 +568,9 @@
         };
 
         // Scroll
-        document.getElementById('mappingSection').scrollIntoView({ 
-            behavior: 'smooth', 
-            block: 'center' 
+        document.getElementById('mappingSection').scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
         });
     }
 
@@ -674,21 +686,21 @@
         
         // Mostrar modal
         document.getElementById('divisionModal').style.display = 'flex';
-        document.getElementById('divisionModalTitle').textContent = `🔀 Dividir: ${divisionState.sourceColumn}`;
-        
+        document.getElementById('divisionColumnName').textContent = divisionState.sourceColumn;
+
         // Mostrar datos originales
-        const previewHTML = divisionState.sourceData.slice(0, 5).map((val, idx) => 
+        const previewHTML = divisionState.sourceData.slice(0, 5).map((val, idx) =>
             `<div style="padding: 8px; border-bottom: 1px solid #e0e0e0;">
-                <strong>Fila ${idx + 1}:</strong> "${val}"
+                <strong>Fila ${idx + 1}:</strong> "${sanitizeHTML(val)}"
             </div>`
         ).join('');
-        
-        document.getElementById('divisionOriginalData').innerHTML = previewHTML;
-        
+
+        document.getElementById('originalData').innerHTML = previewHTML;
+
         // Limpiar
-        document.getElementById('divisionSeparatorInput').value = '';
-        document.getElementById('divisionPreview').innerHTML = '<span style="color: #999;">Ingresa un separador para ver el preview...</span>';
-        document.getElementById('divisionNaming').style.display = 'none';
+        document.getElementById('separatorInput').value = '';
+        document.getElementById('livePreview').innerHTML = '<span style="color: #999;">Ingresa un separador para ver el preview...</span>';
+        document.getElementById('namingSection').style.display = 'none';
     }
 
     function closeDivisionModal() {
@@ -696,17 +708,17 @@
     }
 
     function setDivisionSeparator(sep) {
-        document.getElementById('divisionSeparatorInput').value = sep;
+        document.getElementById('separatorInput').value = sep;
         updateDivisionPreview();
     }
 
     function updateDivisionPreview() {
-        const separator = document.getElementById('divisionSeparatorInput').value;
-        
+        const separator = document.getElementById('separatorInput').value;
+
         if (!separator) {
-            document.getElementById('divisionPreview').innerHTML = '<span style="color: #999;">Ingresa un separador...</span>';
-            document.getElementById('divisionNaming').style.display = 'none';
-            document.getElementById('divisionApplyBtn').disabled = true;
+            document.getElementById('livePreview').innerHTML = '<span style="color: #999;">Ingresa un separador...</span>';
+            document.getElementById('namingSection').style.display = 'none';
+            document.getElementById('applyBtn').disabled = true;
             return;
         }
         
@@ -717,11 +729,11 @@
             const parts = String(val).split(separator);
             return `
                 <div style="padding: 10px; border: 1px solid #28a745; border-radius: 5px; margin-bottom: 10px; background: white;">
-                    <strong>Fila ${rowIdx + 1}:</strong> "${val}"
+                    <strong>Fila ${rowIdx + 1}:</strong> "${sanitizeHTML(val)}"
                     <div style="margin-top: 5px; padding-left: 20px;">
                         ${parts.map((part, idx) => `
                             <div style="color: #667eea;">
-                                → Parte ${idx + 1}: "<strong>${part}</strong>"
+                                → Parte ${idx + 1}: "<strong>${sanitizeHTML(part)}</strong>"
                             </div>
                         `).join('')}
                     </div>
@@ -729,16 +741,16 @@
             `;
         }).join('');
         
-        document.getElementById('divisionPreview').innerHTML = previewData;
-        
+        document.getElementById('livePreview').innerHTML = previewData;
+
         // Detectar número de partes
         const maxParts = Math.max(...divisionState.sourceData.map(val => String(val).split(separator).length));
-        
+
         // Mostrar inputs de nombres
         showDivisionNaming(maxParts);
-        
-        document.getElementById('divisionApplyBtn').disabled = false;
-        document.getElementById('divisionApplyBtn').style.opacity = '1';
+
+        document.getElementById('applyBtn').disabled = false;
+        document.getElementById('applyBtn').style.opacity = '1';
     }
 
     function showDivisionNaming(numParts) {
@@ -756,8 +768,8 @@
             </div>
         `).join('');
         
-        document.getElementById('divisionNamingInputs').innerHTML = html;
-        document.getElementById('divisionNaming').style.display = 'block';
+        document.getElementById('namingInputs').innerHTML = html;
+        document.getElementById('namingSection').style.display = 'block';
     }
 
     function applyDivision() {
@@ -846,13 +858,13 @@
                 <table class="preview-table">
                     <thead>
                         <tr>
-                            ${template.columns.map(col => `<th>${col}</th>`).join('')}
+                            ${template.columns.map(col => `<th>${sanitizeHTML(col)}</th>`).join('')}
                         </tr>
                     </thead>
                     <tbody>
                         ${csvData.slice(0, 10).map(row => `
                             <tr>
-                                ${template.columns.map(col => `<td>${row[col]}</td>`).join('')}
+                                ${template.columns.map(col => `<td>${sanitizeHTML(row[col])}</td>`).join('')}
                             </tr>
                         `).join('')}
                     </tbody>
@@ -886,15 +898,21 @@
             const template = getTemplate();
             const csvContent = [
                 template.columns.join(','),
-                ...window.generatedCSVData.map(row => 
-                    template.columns.map(col => `"${row[col]}"`).join(',')
+                ...window.generatedCSVData.map(row =>
+                    template.columns.map(col => {
+                        const val = String(row[col] || '').replace(/"/g, '""');
+                        return `"${val}"`;
+                    }).join(',')
                 )
             ].join('\n');
-            
+
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
-            link.download = `${state.selectedProduct}_${state.selectedCommand}_${Date.now()}.csv`;
+            const customName = document.getElementById('csvNameInput').value.trim();
+            link.download = customName
+                ? `${customName}.csv`
+                : `${state.selectedProduct}_${state.selectedCommand}_${Date.now()}.csv`;
             link.click();
         };
     }
