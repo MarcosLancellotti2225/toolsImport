@@ -1,146 +1,124 @@
-const COMMAND_TEMPLATES = {
-            // IvSign Commands
+// ============================================
+// CSV Generator v4.1.0
+// Multi-format + Multi-sheet + No errors
+// ============================================
+
+(function() {
+    'use strict';
+
+    // ============================================
+    // ESTADO GLOBAL
+    // ============================================
+    const state = {
+        selectedProduct: null,
+        selectedCommand: null,
+        selectedFormat: 'xlsx',  // NUEVO: formato seleccionado
+        currentWorkbook: null,   // NUEVO: workbook para hojas múltiples
+        excelColumns: [],
+        excelData: [],
+        mapping: {},
+        hasHeaderRow: true
+    };
+
+    // ============================================
+    // TEMPLATES (IvSign + IvNeos)
+    // ============================================
+    const templates = {
+        ivsign: {
             'users-add': {
-                product: 'ivsign',
-                category: 'Users',
-                columns: ['userid', 'email', 'nombre', 'apellidos', 'dni', 'telefono', 'rol', 'password']
+                columns: ['userid', 'email', 'nombre', 'apellidos', 'dni', 'telefono', 'rol', 'password'],
+                defaults: { rol: 'admin', password: '---' }
             },
-            'users-set': {
-                product: 'ivsign',
-                category: 'Users',
-                columns: ['userid', 'nombre', 'apellidos', 'dni', 'email']
+            'users-modify': {
+                columns: ['userid', 'email', 'nombre', 'apellidos', 'dni', 'telefono', 'rol'],
+                defaults: { rol: 'admin' }
             },
-            'users-remove': {
-                product: 'ivsign',
-                category: 'Users',
-                columns: ['orgaid', 'userid']
+            'users-delete': {
+                columns: ['userid'],
+                defaults: {}
             },
-            'certs-import': {
-                product: 'ivsign',
-                category: 'Certs',
-                columns: ['cert_pfx', 'cert_password', 'cert_name', 'descr', 'cert_pin', 'userid', 'orgaid', 'cargo', 'departamento', 'personalizado']
+            'certs-add': {
+                columns: ['userid', 'certType', 'p12File', 'p12Pass'],
+                defaults: { certType: 'qualified' }
             },
-            'certs-del': {
-                product: 'ivsign',
-                category: 'Certs',
-                columns: ['certid']
+            'certs-modify': {
+                columns: ['userid', 'certType', 'p12File', 'p12Pass'],
+                defaults: { certType: 'qualified' }
             },
-            'certs-pinset': {
-                product: 'ivsign',
-                category: 'Certs',
-                columns: ['certid', 'pin_antiguo', 'pin_nuevo']
+            'certs-delegate': {
+                columns: ['userid', 'certType', 'certSerial', 'certOwner'],
+                defaults: { certType: 'qualified' }
             },
             'delegs-add': {
-                product: 'ivsign',
-                category: 'Delegs',
-                columns: ['certid', 'delegate_name', 'description', 'Ignorecertrules', 'needauth']
+                columns: ['userid', 'delegType', 'delegUser', 'delegStart', 'delegEnd'],
+                defaults: { delegType: 'permanent' }
             },
-            'delegs-usersadd': {
-                product: 'ivsign',
-                category: 'Delegs',
-                columns: ['delegid', 'orgaid', 'cert_userid', 'cert_pin', 'cert_deleg_pin', 'notify']
+            'delegs-modify': {
+                columns: ['userid', 'delegType', 'delegUser', 'delegStart', 'delegEnd'],
+                defaults: { delegType: 'permanent' }
             },
-            'delegs-del': {
-                product: 'ivsign',
-                category: 'Delegs',
-                columns: ['delegid']
-            },
-            'delegs-usersdel': {
-                product: 'ivsign',
-                category: 'Delegs',
-                columns: ['delegid', 'userid']
+            'delegs-delete': {
+                columns: ['userid', 'delegUser'],
+                defaults: {}
             },
             'rules-add': {
-                product: 'ivsign',
-                category: 'Rules',
-                columns: ['certid']
+                columns: ['userid', 'ruleType', 'ruleValue'],
+                defaults: { ruleType: 'email' }
             },
-            
-            // IvNeos Commands
-            'clientes-import': {
-                product: 'ivneos',
-                category: 'Clientes',
-                columns: ['nombre', 'cif', 'direccion', 'cp', 'poblacion', 'provincia', 'pais', 'telefono', 'email']
-            },
-            'grupos-import': {
-                product: 'ivneos',
-                category: 'Grupos',
-                columns: ['nombre', 'descripcion']
-            },
-            'usuarios-import': {
-                product: 'ivneos',
-                category: 'Usuarios',
-                columns: ['nombre', 'apellidos', 'email', 'telefono', 'grupo']
+            'rules-modify': {
+                columns: ['userid', 'ruleType', 'ruleValue'],
+                defaults: { ruleType: 'email' }
             }
-        };
-
-        // Estado global
-        let state = {
-            selectedProduct: null,
-            selectedCommand: null,
-            excelData: null,
-            excelColumns: [],
-            mapping: {},
-            defaultValues: {},
-            mode: null // 'create' o 'convert'
-        };
-
-        // Renderizar botones de comandos
-        function renderCommandButtons() {
-            const grid = document.getElementById('commandGrid');
-            grid.innerHTML = '';
-
-            // Filtrar comandos por producto seleccionado
-            const filteredCommands = Object.keys(COMMAND_TEMPLATES).filter(cmd => {
-                return state.selectedProduct && COMMAND_TEMPLATES[cmd].product === state.selectedProduct;
-            });
-
-            filteredCommands.forEach(cmd => {
-                const template = COMMAND_TEMPLATES[cmd];
-                const btn = document.createElement('button');
-                btn.className = 'command-btn';
-                btn.innerHTML = `
-                    <div class="command-category">${template.category}</div>
-                    <div class="command-name">${cmd}</div>
-                `;
-                btn.onclick = () => selectCommand(cmd);
-                grid.appendChild(btn);
-            });
+        },
+        ivneos: {
+            'clientes': {
+                columns: ['identificador', 'razon_social', 'nif', 'email', 'telefono'],
+                defaults: {}
+            },
+            'grupos': {
+                columns: ['id_grupo', 'nombre_grupo', 'descripcion'],
+                defaults: {}
+            },
+            'usuarios': {
+                columns: ['userid', 'email', 'nombre', 'apellidos', 'dni', 'telefono', 'grupo'],
+                defaults: { grupo: 'usuarios' }
+            }
         }
+    };
 
-        // Seleccionar comando
-        function selectCommand(cmd) {
-            state.selectedCommand = cmd;
-            
-            // Update UI
-            document.querySelectorAll('.command-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            event.target.closest('.command-btn').classList.add('active');
+    // ============================================
+    // INICIALIZACIÓN
+    // ============================================
+    document.addEventListener('DOMContentLoaded', init);
 
-            // Mostrar columnas requeridas
-            const template = COMMAND_TEMPLATES[cmd];
-            const columnsInfo = document.getElementById('columnsInfo');
-            const requiredColumns = document.getElementById('requiredColumns');
-            
-            requiredColumns.innerHTML = template.columns.map(col => 
-                `<span style="display: inline-block; background: #667eea; color: white; padding: 5px 10px; margin: 5px; border-radius: 5px; font-size: 0.9em;">${col}</span>`
-            ).join('');
-            
-            columnsInfo.style.display = 'block';
-        }
+    function init() {
+        setupProductSelection();
+        setupFormatSelection();  // NUEVO
+        setupFileUpload();
+        setupHeaderOptions();
+        setupDownload();
+        setupReset();
+    }
 
-        // Configurar zona de carga
-        const uploadArea = document.getElementById('uploadArea');
-        const fileInput = document.getElementById('fileInput');
+    // ============================================
+    // PASO 1: SELECCIÓN DE PRODUCTO Y COMANDO
+    // ============================================
+    function setupProductSelection() {
+        // Product cards
+        document.querySelectorAll('.product-card').forEach(card => {
+            card.onclick = () => {
+                const product = card.dataset.product;
+                selectProduct(product);
+            };
+        });
 
-        // Botones de modo
+        // Template buttons
         document.getElementById('createTemplateBtn').onclick = () => {
             if (!state.selectedCommand) {
                 alert('⚠️ Primero selecciona un comando');
                 return;
             }
-            createTemplateMode();
+            createEmptyTemplate();
         };
 
         document.getElementById('loadExcelBtn').onclick = () => {
@@ -148,225 +126,341 @@ const COMMAND_TEMPLATES = {
                 alert('⚠️ Primero selecciona un comando');
                 return;
             }
-            loadExcelMode();
+            // Show format selector
+            document.getElementById('formatSelector').style.display = 'block';
+            document.getElementById('formatSelector').scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'start' 
+            });
         };
 
-        // Modo: Crear Template
-        function createTemplateMode() {
-            state.mode = 'create';
-            document.getElementById('modeInfo').style.display = 'block';
-            document.getElementById('modeInfoText').innerHTML = '📄 <strong>Modo: Crear Template</strong> - Se generará un Excel vacío con las columnas correctas';
-            document.getElementById('uploadArea').style.display = 'none';
-            document.getElementById('templateCreated').style.display = 'block';
-            document.getElementById('headerOption').style.display = 'none';
-        }
-
-        // Modo: Cargar Excel
-        function loadExcelMode() {
-            state.mode = 'convert';
-            document.getElementById('modeInfo').style.display = 'block';
-            document.getElementById('modeInfoText').innerHTML = '📁 <strong>Modo: Convertir Excel</strong> - Carga tu Excel desordenado y lo convertiremos';
-            document.getElementById('uploadArea').style.display = 'block';
-            document.getElementById('templateCreated').style.display = 'none';
-            document.getElementById('headerOption').style.display = 'none'; // Se mostrará después de cargar el archivo
-        }
-
-        // Crear y descargar template Excel vacío
         document.getElementById('downloadTemplateBtn').onclick = () => {
-            const template = COMMAND_TEMPLATES[state.selectedCommand];
-            
-            // Crear workbook vacío con las columnas correctas
-            const ws_data = [template.columns]; // Solo el header
-            
-            // Agregar algunas filas de ejemplo vacías (10 filas)
-            for (let i = 0; i < 10; i++) {
-                ws_data.push(new Array(template.columns.length).fill(''));
-            }
-            
-            const ws = XLSX.utils.aoa_to_sheet(ws_data);
-            
-            // Dar formato a las columnas (ancho automático)
-            const colWidths = template.columns.map(col => ({wch: Math.max(col.length + 2, 15)}));
-            ws['!cols'] = colWidths;
-            
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Datos");
-            
-            // Obtener nombre personalizado o usar el default
-            const customName = document.getElementById('templateNameInput').value.trim();
-            const fileName = customName 
-                ? `${customName}.xlsx`
-                : `template_${state.selectedCommand}.xlsx`;
-            
-            // Descargar
-            XLSX.writeFile(wb, fileName);
-            
-            alert(`✅ Template descargado!\n\n📄 Archivo: ${fileName}\n\n📝 Instrucciones:\n1. Abre el archivo Excel\n2. Complétalo con tus datos\n3. Vuelve aquí y usa "Cargar Excel Existente"\n4. El sistema lo detectará automáticamente y podrás procesarlo`);
-        };
-
-        uploadArea.onclick = () => fileInput.click();
-
-        uploadArea.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadArea.classList.add('dragover');
-        });
-
-        uploadArea.addEventListener('dragleave', () => {
-            uploadArea.classList.remove('dragover');
-        });
-
-        uploadArea.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadArea.classList.remove('dragover');
-            
-            const file = e.dataTransfer.files[0];
-            if (file) {
-                handleFile(file);
-            }
-        });
-
-        fileInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                handleFile(file);
-            }
-        });
-
-        // Procesar archivo
-        let rawExcelData = null; // Para guardar los datos sin procesar
-        let currentWorkbook = null; // Para guardar el workbook
-
-        function handleFile(file) {
             if (!state.selectedCommand) {
                 alert('⚠️ Primero selecciona un comando');
                 return;
             }
+            downloadTemplate();
+        };
+    }
 
+    function selectProduct(product) {
+        state.selectedProduct = product;
+        
+        // Update UI
+        document.querySelectorAll('.product-card').forEach(card => {
+            card.classList.remove('selected');
+        });
+        document.querySelector(`[data-product="${product}"]`).classList.add('selected');
+
+        // Show commands
+        document.querySelectorAll('.commands-list').forEach(list => {
+            list.style.display = 'none';
+        });
+        document.getElementById(`${product}Commands`).style.display = 'block';
+        document.getElementById('commandSection').style.display = 'block';
+
+        // Setup command selection
+        document.querySelectorAll(`#${product}Commands .command-item`).forEach(item => {
+            item.onclick = () => {
+                const command = item.dataset.command;
+                selectCommand(command);
+            };
+        });
+    }
+
+    function selectCommand(command) {
+        state.selectedCommand = command;
+        
+        // Update UI
+        document.querySelectorAll('.command-item').forEach(item => {
+            item.classList.remove('selected');
+        });
+        document.querySelector(`[data-command="${command}"]`).classList.add('selected');
+
+        // Show options
+        document.getElementById('templateOrExcel').style.display = 'block';
+        
+        // Scroll
+        document.getElementById('templateOrExcel').scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center' 
+        });
+    }
+
+    // ============================================
+    // TEMPLATES
+    // ============================================
+    function createEmptyTemplate() {
+        const template = getTemplate();
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet([template.columns]);
+        XLSX.utils.book_append_sheet(wb, ws, 'Template');
+        XLSX.writeFile(wb, `template_${state.selectedCommand}.xlsx`);
+    }
+
+    function downloadTemplate() {
+        const template = getTemplate();
+        const sampleData = [
+            template.columns,
+            template.columns.map(col => template.defaults[col] || `ejemplo_${col}`)
+        ];
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet(sampleData);
+        XLSX.utils.book_append_sheet(wb, ws, 'Template');
+        XLSX.writeFile(wb, `template_${state.selectedCommand}_con_ejemplo.xlsx`);
+    }
+
+    function getTemplate() {
+        return templates[state.selectedProduct][state.selectedCommand];
+    }
+
+    // ============================================
+    // PASO 2: SELECCIÓN DE FORMATO (NUEVO)
+    // ============================================
+    function setupFormatSelection() {
+        const formatCards = document.querySelectorAll('.format-card');
+        
+        formatCards.forEach(card => {
+            card.onclick = () => {
+                const format = card.dataset.format;
+                selectFormat(format);
+            };
+        });
+    }
+
+    function selectFormat(format) {
+        state.selectedFormat = format;
+        
+        // Update UI
+        document.querySelectorAll('.format-card').forEach(card => {
+            card.classList.remove('selected');
+        });
+        document.querySelector(`[data-format="${format}"]`).classList.add('selected');
+
+        // Show/hide format options
+        document.querySelectorAll('.format-options').forEach(opt => {
+            opt.style.display = 'none';
+        });
+        
+        document.getElementById('formatOptions').style.display = 'none';
+        
+        if (format === 'csv') {
+            document.getElementById('formatOptions').style.display = 'block';
+            document.getElementById('csvOptions').style.display = 'block';
+        } else if (format === 'xml') {
+            document.getElementById('formatOptions').style.display = 'block';
+            document.getElementById('xmlOptions').style.display = 'block';
+        }
+
+        // Update file input accept
+        const accepts = {
+            xlsx: '.xlsx,.xls',
+            csv: '.csv',
+            json: '.json',
+            xml: '.xml'
+        };
+        document.getElementById('fileInput').accept = accepts[format];
+
+        // Show upload button
+        document.getElementById('uploadBtn').style.display = 'block';
+        document.getElementById('noFormatSelected').style.display = 'none';
+    }
+
+    // ============================================
+    // CARGA DE ARCHIVOS (MULTI-FORMATO)
+    // ============================================
+    function setupFileUpload() {
+        document.getElementById('fileInput').onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                handleFileUpload(file);
+            }
+        };
+    }
+
+    async function handleFileUpload(file) {
+        if (!state.selectedCommand) {
+            alert('⚠️ Primero selecciona un comando');
+            return;
+        }
+
+        try {
+            let result;
+            
+            // Cargar según formato seleccionado
+            switch (state.selectedFormat) {
+                case 'xlsx':
+                    result = await loadXLSXFile(file);
+                    break;
+                    
+                case 'csv':
+                    const csvOptions = {
+                        delimiter: document.getElementById('csvDelimiter').value === 'auto' ? null : document.getElementById('csvDelimiter').value,
+                        encoding: document.getElementById('csvEncoding').value,
+                        hasHeader: document.getElementById('csvHasHeader').checked
+                    };
+                    result = await FormatLoaders.loadCSV(file, csvOptions);
+                    break;
+                    
+                case 'json':
+                    result = await FormatLoaders.loadJSON(file);
+                    break;
+                    
+                case 'xml':
+                    const xmlOptions = {
+                        rowPath: document.getElementById('xmlRowPath').value || null
+                    };
+                    result = await FormatLoaders.loadXML(file, xmlOptions);
+                    break;
+            }
+            
+            // Guardar datos
+            state.excelColumns = result.columns;
+            state.excelData = result.data;
+            
+            // Mostrar opciones de header (solo para XLSX)
+            if (state.selectedFormat === 'xlsx') {
+                document.getElementById('headerOption').style.display = 'block';
+                document.getElementById('headerOption').scrollIntoView({ 
+                    behavior: 'smooth', 
+                    block: 'center' 
+                });
+            } else {
+                // Para otros formatos, ir directo al mapeo
+                setupMapping();
+            }
+            
+        } catch (error) {
+            alert('❌ Error al procesar archivo:\n' + error.message);
+            console.error(error);
+        }
+    }
+
+    // Cargar XLSX con soporte multi-hoja
+    async function loadXLSXFile(file) {
+        return new Promise((resolve, reject) => {
             const reader = new FileReader();
             
             reader.onload = (e) => {
                 try {
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, { type: 'array' });
-                    currentWorkbook = workbook;
+                    state.currentWorkbook = workbook;
                     
                     // Si hay múltiples hojas, mostrar selector
                     if (workbook.SheetNames.length > 1) {
                         showSheetSelector(workbook);
+                        resolve({ columns: [], data: [] }); // Placeholder
                     } else {
-                        // Solo una hoja, cargarla directamente
-                        loadSheet(workbook, workbook.SheetNames[0]);
+                        // Solo una hoja
+                        const result = processSheet(workbook, workbook.SheetNames[0]);
+                        resolve(result);
                     }
                     
                 } catch (error) {
-                    alert('❌ Error al leer el archivo: ' + error.message);
+                    reject(error);
                 }
             };
             
+            reader.onerror = () => reject(new Error('Error al leer el archivo'));
             reader.readAsArrayBuffer(file);
-        }
-        
-        // Mostrar selector de hojas
-        function showSheetSelector(workbook) {
-            const sheetSelectorHTML = `
-                <div style="margin: 20px 0; padding: 20px; background: #f8f9ff; border: 2px solid #667eea; border-radius: 10px;">
-                    <h4 style="color: #667eea; margin-bottom: 15px;">
-                        📑 Este archivo tiene ${workbook.SheetNames.length} hojas
-                    </h4>
-                    <p style="margin-bottom: 15px; color: #666;">
-                        Selecciona qué hoja quieres procesar:
-                    </p>
-                    <select id="sheetSelector" style="width: 100%; padding: 12px; border: 2px solid #667eea; border-radius: 8px; font-size: 1em; margin-bottom: 15px;">
-                        ${workbook.SheetNames.map((name, idx) => 
-                            `<option value="${idx}">${name}</option>`
-                        ).join('')}
-                    </select>
-                    <button id="loadSheetBtn" class="btn btn-primary" style="width: 100%;">
-                        ✅ Cargar Hoja Seleccionada
-                    </button>
-                </div>
-            `;
-            
-            // Mostrar selector antes de las opciones de header
-            const headerOption = document.getElementById('headerOption');
-            headerOption.insertAdjacentHTML('beforebegin', `<div id="sheetSelectorDiv">${sheetSelectorHTML}</div>`);
-            
-            // Event listener para cargar hoja
-            document.getElementById('loadSheetBtn').onclick = () => {
-                const selectedIndex = document.getElementById('sheetSelector').value;
-                const sheetName = workbook.SheetNames[selectedIndex];
-                loadSheet(workbook, sheetName);
-                
-                // Ocultar selector después de seleccionar
-                document.getElementById('sheetSelectorDiv').style.display = 'none';
-            };
-        }
-        
-        // Cargar una hoja específica
-        function loadSheet(workbook, sheetName) {
-            const sheet = workbook.Sheets[sheetName];
-            
-            // Leer como array de arrays para tener control total
-            rawExcelData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-            
-            if (rawExcelData.length === 0) {
-                alert('⚠️ La hoja está vacía');
-                return;
-            }
+        });
+    }
 
-            // Mostrar opción de header
+    function showSheetSelector(workbook) {
+        const html = `
+            <div style="margin: 20px 0; padding: 20px; background: #f8f9ff; border: 2px solid #667eea; border-radius: 10px;">
+                <h4 style="color: #667eea; margin-bottom: 15px;">
+                    📑 Este archivo tiene ${workbook.SheetNames.length} hojas
+                </h4>
+                <p style="margin-bottom: 15px; color: #666;">
+                    Selecciona qué hoja quieres procesar:
+                </p>
+                <select id="sheetSelector" style="width: 100%; padding: 12px; border: 2px solid #667eea; border-radius: 8px; font-size: 1em; margin-bottom: 15px;">
+                    ${workbook.SheetNames.map((name, idx) => 
+                        `<option value="${idx}">${name}</option>`
+                    ).join('')}
+                </select>
+                <button id="loadSheetBtn" class="btn btn-primary" style="width: 100%;">
+                    ✅ Cargar Hoja Seleccionada
+                </button>
+            </div>
+        `;
+        
+        const container = document.getElementById('headerOption');
+        container.insertAdjacentHTML('beforebegin', `<div id="sheetSelectorDiv">${html}</div>`);
+        
+        document.getElementById('loadSheetBtn').onclick = () => {
+            const idx = document.getElementById('sheetSelector').value;
+            const sheetName = workbook.SheetNames[idx];
+            const result = processSheet(workbook, sheetName);
+            
+            state.excelColumns = result.columns;
+            state.excelData = result.data;
+            
+            document.getElementById('sheetSelectorDiv').remove();
             document.getElementById('headerOption').style.display = 'block';
-            
-            // Si hay múltiples hojas, agregar botón para cambiar
-            if (workbook.SheetNames.length > 1) {
-                // Remover botón anterior si existe
-                const oldChangeBtn = document.getElementById('changeSheetBtn');
-                if (oldChangeBtn) oldChangeBtn.remove();
-                
-                // Agregar nuevo botón
-                const changeSheetHTML = `
-                    <div id="changeSheetBtn" style="margin: 15px 0; text-align: center;">
-                        <button class="btn btn-secondary" onclick="showSheetSelectorAgain()" style="padding: 10px 20px;">
-                            📑 Cambiar de Hoja (Actual: ${sheetName})
-                        </button>
-                    </div>
-                `;
-                document.getElementById('headerOption').insertAdjacentHTML('afterbegin', changeSheetHTML);
-            }
-            
-            // Scroll suave al selector de header
-            document.getElementById('headerOption').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            document.getElementById('headerOption').scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'center' 
+            });
+        };
+    }
+
+    function processSheet(workbook, sheetName) {
+        const sheet = workbook.Sheets[sheetName];
+        const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+        
+        if (rawData.length === 0) {
+            throw new Error('La hoja está vacía');
         }
         
-        // Función para volver a mostrar selector de hojas
-        window.showSheetSelectorAgain = function() {
-            if (currentWorkbook) {
-                // Limpiar y resetear
-                document.getElementById('headerOption').style.display = 'none';
-                const oldSelector = document.getElementById('sheetSelectorDiv');
-                if (oldSelector) oldSelector.remove();
-                
-                // Mostrar selector nuevamente
-                showSheetSelector(currentWorkbook);
-            }
-        };
+        // Asumir que tiene header por defecto
+        const columns = rawData[0].map(h => String(h).trim());
+        const dataRows = rawData.slice(1);
+        
+        const data = dataRows.map(row => {
+            const obj = {};
+            columns.forEach((col, idx) => {
+                obj[col] = row[idx] !== undefined ? String(row[idx]).trim() : '';
+            });
+            return obj;
+        });
+        
+        return { columns, data };
+    }
 
-        // Procesar archivo según opción de header
+    // ============================================
+    // OPCIONES DE HEADER
+    // ============================================
+    function setupHeaderOptions() {
         document.getElementById('processFileBtn').onclick = () => {
             const hasHeader = document.getElementById('hasHeaderRow').value === 'true';
-            processExcelData(rawExcelData, hasHeader);
+            
+            if (!hasHeader) {
+                // Regenerar columnas como A, B, C...
+                const numCols = state.excelData[0] ? Object.keys(state.excelData[0]).length : 0;
+                state.excelColumns = Array.from({ length: numCols }, (_, i) => {
+                    let col = '';
+                    let n = i;
+                    while (n >= 0) {
+                        col = String.fromCharCode(65 + (n % 26)) + col;
+                        n = Math.floor(n / 26) - 1;
+                    }
+                    return `Columna ${col}`;
+                });
+            }
+            
+            setupMapping();
         };
 
-        // Manejar selección de opciones de header
+        // Header option cards
         document.getElementById('optionWithHeader').onclick = function() {
             document.getElementById('hasHeaderRow').value = 'true';
-            
-            // Estilos activo
             this.style.background = '#f8f9ff';
             this.style.borderColor = '#667eea';
             this.querySelector('h4').style.color = '#667eea';
             
-            // Estilos inactivo
             document.getElementById('optionWithoutHeader').style.background = 'white';
             document.getElementById('optionWithoutHeader').style.borderColor = '#e0e0e0';
             document.getElementById('optionWithoutHeader').querySelector('h4').style.color = '#666';
@@ -374,696 +468,402 @@ const COMMAND_TEMPLATES = {
 
         document.getElementById('optionWithoutHeader').onclick = function() {
             document.getElementById('hasHeaderRow').value = 'false';
-            
-            // Estilos activo
             this.style.background = '#fff8e1';
             this.style.borderColor = '#ffc107';
             this.querySelector('h4').style.color = '#f57c00';
             
-            // Estilos inactivo
             document.getElementById('optionWithHeader').style.background = 'white';
             document.getElementById('optionWithHeader').style.borderColor = '#e0e0e0';
             document.getElementById('optionWithHeader').querySelector('h4').style.color = '#666';
         };
+    }
 
-        function processExcelData(rawData, hasHeader) {
-            const template = COMMAND_TEMPLATES[state.selectedCommand];
-
-            if (hasHeader) {
-                // Modo normal: primera fila son headers
-                const headers = rawData[0];
-                const dataRows = rawData.slice(1);
-                
-                state.excelColumns = headers.map(h => String(h).trim());
-                state.excelData = dataRows.map(row => {
-                    const obj = {};
-                    headers.forEach((header, idx) => {
-                        obj[String(header).trim()] = row[idx] || '';
-                    });
-                    return obj;
-                });
-            } else {
-                // Sin headers: generar nombres como Columna A, B, C... Z, AA, AB, etc.
-                const numColumns = rawData[0].length;
-                state.excelColumns = Array.from({ length: numColumns }, (_, i) => {
-                    // Convertir índice a letra estilo Excel: 0=A, 1=B, 25=Z, 26=AA, 27=AB...
-                    let columnLetter = '';
-                    let num = i;
-                    while (num >= 0) {
-                        columnLetter = String.fromCharCode(65 + (num % 26)) + columnLetter;
-                        num = Math.floor(num / 26) - 1;
-                    }
-                    return `Columna ${columnLetter}`;
-                });
-                
-                state.excelData = rawData.map(row => {
-                    const obj = {};
-                    state.excelColumns.forEach((colName, idx) => {
-                        obj[colName] = row[idx] || '';
-                    });
-                    return obj;
-                });
-            }
-
-            if (state.excelData.length === 0) {
-                alert('⚠️ No hay datos para procesar');
-                return;
-            }
-
-            // Verificar si el Excel cargado ya tiene las columnas correctas (modo create)
-            const hasCorrectColumns = template.columns.every(col => 
-                state.excelColumns.includes(col)
+    // ============================================
+    // MAPEO DE COLUMNAS
+    // ============================================
+    function setupMapping() {
+        const template = getTemplate();
+        
+        // Auto-mapeo
+        state.mapping = {};
+        let autoMappedCount = 0;
+        
+        template.columns.forEach(reqCol => {
+            const match = state.excelColumns.find(excelCol => 
+                excelCol.toLowerCase().includes(reqCol.toLowerCase()) ||
+                reqCol.toLowerCase().includes(excelCol.toLowerCase())
             );
-
-            if (hasCorrectColumns && state.excelColumns.length === template.columns.length) {
-                // Excel ya tiene formato correcto, mapeo directo
-                state.mapping = {};
-                template.columns.forEach(col => {
-                    state.mapping[col] = col;
-                });
-                document.getElementById('mappingSection').style.display = 'none';
-                generatePreview();
-                alert('✅ Excel con formato correcto detectado! Generando preview...');
+            
+            if (match) {
+                state.mapping[reqCol] = match;
+                autoMappedCount++;
             } else {
-                // Excel desordenado, necesita mapeo
-                setupMapping();
+                state.mapping[reqCol] = '';
             }
-        }
+        });
 
-        // Configurar mapeo de columnas
-        function setupMapping() {
-            const template = COMMAND_TEMPLATES[state.selectedCommand];
-            const mappingBody = document.getElementById('mappingBody');
-            mappingBody.innerHTML = '';
-
-            // Auto-mapear columnas similares
-            let autoMappedCount = 0;
-            template.columns.forEach(requiredCol => {
-                const normalizedRequired = requiredCol.toLowerCase().replace(/[_-]/g, '');
-                
-                let matchedCol = null;
-                for (let excelCol of state.excelColumns) {
-                    const normalizedExcel = excelCol.toLowerCase().replace(/[_-]/g, '');
-                    if (normalizedExcel === normalizedRequired || 
-                        normalizedExcel.includes(normalizedRequired) ||
-                        normalizedRequired.includes(normalizedExcel)) {
-                        matchedCol = excelCol;
-                        autoMappedCount++;
-                        break;
-                    }
-                }
-
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td><strong>${requiredCol}</strong></td>
-                    <td>
-                        <select class="column-mapping" data-required="${requiredCol}">
-                            <option value="">-- No mapear --</option>
-                            ${state.excelColumns.map(col => 
-                                `<option value="${col}" ${col === matchedCol ? 'selected' : ''}>${col}</option>`
-                            ).join('')}
-                        </select>
-                    </td>
-                    <td style="text-align: center;">
-                        <button class="btn btn-primary" onclick="openDivisionModal('${requiredCol}')" 
-                                style="padding: 6px 12px; font-size: 0.9em; background: #28a745;">
-                            🔀 Dividir
-                        </button>
-                    </td>
-                    <td>
-                        <input type="text" 
-                               class="default-value" 
-                               data-required="${requiredCol}"
-                               placeholder="Valor fijo (opcional)"
-                               style="width: 100%; padding: 8px; border: 1px solid #e0e0e0; border-radius: 5px;">
-                    </td>
-                `;
-                mappingBody.appendChild(row);
-
-                // Inicializar mapping
-                if (matchedCol) {
-                    state.mapping[requiredCol] = matchedCol;
-                }
-            });
-
-            // Mostrar sección de mapeo
-            document.getElementById('mappingSection').classList.add('active');
-
-            // Event listeners para actualización de mapeo
-            document.querySelectorAll('.column-mapping').forEach(select => {
-                select.addEventListener('change', updateMapping);
-            });
-
-            document.querySelectorAll('.default-value').forEach(input => {
-                input.addEventListener('input', updateMapping);
-            });
-
-            // Configurar botón de mapeo manual
-            document.getElementById('manualMappingBtn').onclick = () => {
-                document.getElementById('mappingDetails').style.display = 'block';
-                document.getElementById('manualMappingBtn').style.display = 'none';
-            };
-
-            document.getElementById('applyMappingBtn').onclick = () => {
-                updateMapping();
-                generatePreview();
-            };
-
-            // Generar preview inicial
+        // Mostrar sección de mapeo
+        document.getElementById('mappingSection').style.display = 'block';
+        
+        // Actualizar UI
+        renderMappingTable();
+        
+        // Setup apply button
+        document.getElementById('applyMappingBtn').onclick = () => {
             updateMapping();
-        }
-
-        // Actualizar mapeo
-        function updateMapping() {
-            state.mapping = {};
-            state.defaultValues = {};
-
-            document.querySelectorAll('.column-mapping').forEach(select => {
-                const required = select.dataset.required;
-                const selected = select.value;
-                if (selected) {
-                    state.mapping[required] = selected;
-                }
-            });
-
-            document.querySelectorAll('.default-value').forEach(input => {
-                const required = input.dataset.required;
-                const value = input.value.trim();
-                if (value) {
-                    state.defaultValues[required] = value;
-                }
-            });
-
-            // Mostrar resumen del mapeo
-            showMappingSummary();
-
             generatePreview();
-        }
-
-        // Mostrar resumen del mapeo
-        function showMappingSummary() {
-            const template = COMMAND_TEMPLATES[state.selectedCommand];
-            const mappedCount = Object.keys(state.mapping).length;
-            const defaultCount = Object.keys(state.defaultValues).length;
-            const totalRequired = template.columns.length;
-            const unmappedCount = totalRequired - mappedCount - defaultCount;
-
-            // Crear o actualizar el resumen
-            let summaryDiv = document.getElementById('mappingSummary');
-            if (!summaryDiv) {
-                summaryDiv = document.createElement('div');
-                summaryDiv.id = 'mappingSummary';
-                summaryDiv.className = 'mapping-summary';
-                const mappingSection = document.getElementById('mappingSection');
-                mappingSection.insertBefore(summaryDiv, document.getElementById('mappingDetails'));
-            }
-
-            summaryDiv.innerHTML = `
-                <strong>📊 Estado del mapeo:</strong><br>
-                ✅ Mapeadas: ${mappedCount}/${totalRequired} columnas<br>
-                🔧 Con valor por defecto: ${defaultCount}<br>
-                ${unmappedCount > 0 ? `⚠️ Sin mapear: ${unmappedCount} (quedarán vacías)` : '✨ ¡Mapeo completo!'}
-            `;
-        }
-
-        // Generar preview
-        function generatePreview() {
-            const template = COMMAND_TEMPLATES[state.selectedCommand];
-            const previewHead = document.getElementById('previewHead');
-            const previewBody = document.getElementById('previewBody');
-
-            // Header
-            previewHead.innerHTML = `
-                <tr>
-                    ${template.columns.map(col => `<th>${col}</th>`).join('')}
-                </tr>
-            `;
-
-            // Body (primeras 10 filas)
-            previewBody.innerHTML = '';
-            const previewRows = state.excelData.slice(0, 10);
-
-            previewRows.forEach(row => {
-                const tr = document.createElement('tr');
-                template.columns.forEach(col => {
-                    const td = document.createElement('td');
-                    
-                    // Obtener valor: primero default, luego mapeado, luego vacío
-                    let value = '';
-                    if (state.defaultValues[col]) {
-                        value = state.defaultValues[col];
-                    } else if (state.mapping[col]) {
-                        value = row[state.mapping[col]] || '';
-                    }
-                    
-                    td.textContent = value;
-                    tr.appendChild(td);
-                });
-                previewBody.appendChild(tr);
-            });
-
-            // Actualizar contador de filas
-            const totalRows = state.excelData.length;
-            document.getElementById('rowCount').textContent = 
-                `Se procesarán ${totalRows} fila${totalRows !== 1 ? 's' : ''}.`;
-
-            // Inicializar nombre del CSV
-            const csvNameInput = document.getElementById('csvNameInput');
-            if (!csvNameInput.value) {
-                csvNameInput.value = state.selectedCommand;
-            }
-            updateCSVNamePreview();
-
-            // Event listener para actualizar preview del nombre
-            csvNameInput.oninput = updateCSVNamePreview;
-
-            // Mostrar sección de preview
-            document.getElementById('previewSection').classList.add('active');
-        }
-
-        // Actualizar preview del nombre del CSV
-        function updateCSVNamePreview() {
-            const csvNameInput = document.getElementById('csvNameInput');
-            const csvNamePreview = document.getElementById('csvNamePreview');
-            const name = csvNameInput.value.trim() || state.selectedCommand;
-            csvNamePreview.textContent = name;
-        }
-
-        // Generar CSV
-        function generateCSV() {
-            const template = COMMAND_TEMPLATES[state.selectedCommand];
-            const rows = [];
-
-            // Header
-            rows.push(template.columns.join(';'));
-
-            // Data
-            state.excelData.forEach(row => {
-                const csvRow = template.columns.map(col => {
-                    let value = '';
-                    
-                    // Obtener valor: primero default, luego mapeado
-                    if (state.defaultValues[col]) {
-                        value = state.defaultValues[col];
-                    } else if (state.mapping[col]) {
-                        value = row[state.mapping[col]] || '';
-                    }
-                    
-                    // Escapar punto y coma y comillas
-                    value = String(value).replace(/"/g, '""');
-                    if (value.includes(';') || value.includes('\n') || value.includes('"')) {
-                        value = `"${value}"`;
-                    }
-                    
-                    return value;
-                }).join(';');
-                
-                rows.push(csvRow);
-            });
-
-            return rows.join('\r\n');
-        }
-
-        // Descargar CSV
-        document.getElementById('downloadBtn').onclick = () => {
-            const csv = generateCSV();
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            
-            // Obtener nombre personalizado del CSV
-            const csvNameInput = document.getElementById('csvNameInput');
-            const fileName = csvNameInput.value.trim() || state.selectedCommand;
-            
-            link.setAttribute('href', url);
-            link.setAttribute('download', `${fileName}.csv`);
-            link.style.visibility = 'hidden';
-            
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-
-            // Mostrar mensaje de éxito
-            const totalRows = state.excelData.length;
-            alert(`✅ CSV generado con éxito!\n\n📊 Estadísticas:\n- Comando: ${state.selectedCommand}\n- Filas procesadas: ${totalRows}\n- Columnas: ${COMMAND_TEMPLATES[state.selectedCommand].columns.length}\n\n💾 Archivo: ${fileName}.csv`);
         };
 
-        // Reset
-        document.getElementById('resetBtn').onclick = () => {
-            location.reload();
-        };
+        // Scroll
+        document.getElementById('mappingSection').scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center' 
+        });
+    }
 
-        // Selector de productos
-        function selectProduct(product) {
-            state.selectedProduct = product;
+    function renderMappingTable() {
+        const template = getTemplate();
+        const tbody = document.querySelector('#mappingTable tbody');
+        tbody.innerHTML = '';
+
+        template.columns.forEach(reqCol => {
+            const tr = document.createElement('tr');
             
-            // Actualizar UI de las tarjetas
-            document.querySelectorAll('.product-card').forEach(card => {
-                card.classList.remove('selected');
+            // Columna requerida
+            const tdReq = document.createElement('td');
+            tdReq.textContent = reqCol;
+            tdReq.style.fontWeight = '600';
+            tr.appendChild(tdReq);
+            
+            // Dropdown de mapeo
+            const tdMap = document.createElement('td');
+            const select = document.createElement('select');
+            select.className = 'mapping-select';
+            select.dataset.column = reqCol;
+            
+            const optionEmpty = document.createElement('option');
+            optionEmpty.value = '';
+            optionEmpty.textContent = '-- Seleccionar --';
+            select.appendChild(optionEmpty);
+            
+            state.excelColumns.forEach(excelCol => {
+                const option = document.createElement('option');
+                option.value = excelCol;
+                option.textContent = excelCol;
+                if (state.mapping[reqCol] === excelCol) {
+                    option.selected = true;
+                }
+                select.appendChild(option);
             });
-            document.getElementById('product' + (product === 'ivsign' ? 'IvSign' : 'IvNeos')).classList.add('selected');
             
-            // Mostrar sección de comandos
-            document.getElementById('commandSelection').style.display = 'block';
+            tdMap.appendChild(select);
+            tr.appendChild(tdMap);
             
-            // Renderizar comandos filtrados
-            renderCommandButtons();
+            // Botón dividir
+            const tdAction = document.createElement('td');
+            const btnDiv = document.createElement('button');
+            btnDiv.textContent = '🔀 Dividir';
+            btnDiv.className = 'btn btn-secondary';
+            btnDiv.style.padding = '5px 10px';
+            btnDiv.style.fontSize = '0.9em';
+            btnDiv.onclick = () => openDivisionModal(reqCol);
+            tdAction.appendChild(btnDiv);
+            tr.appendChild(tdAction);
             
-            // Scroll suave a comandos
-            document.getElementById('commandSelection').scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
+            tbody.appendChild(tr);
+        });
 
-        // Event listeners para tarjetas de productos
-        document.getElementById('productIvSign').onclick = () => selectProduct('ivsign');
-        document.getElementById('productIvNeos').onclick = () => selectProduct('ivneos');
-
-// ==========================================
-// DIVISIÓN SIMPLE v3.1.0
-// ==========================================
-
-let divisionState = {
-    currentColumn: null,
-    sourceColumn: null,
-    sourceData: [],
-    separator: '',
-    parts: [],
-    columnNames: []
-};
-
-// Abrir modal de división
-window.openDivisionModal = function(columnName) {
-    // Actualizar mapeo primero
-    updateMapping();
-    
-    // Obtener columna mapeada
-    const excelColumn = state.mapping[columnName];
-    
-    if (!excelColumn) {
-        alert(`⚠️ Primero selecciona una columna de tu Excel
-
-En la tabla de arriba, en la fila "${columnName}":
-1. Usa el dropdown "Columna de tu Excel"
-2. Selecciona qué columna del Excel mapear
-3. Luego haz click en "🔀 Dividir"`);
-        return;
+        // Mostrar estado
+        updateMappingStatus();
     }
-    
-    if (!state.excelData || state.excelData.length === 0) {
-        alert('⚠️ No hay datos cargados');
-        return;
+
+    function updateMapping() {
+        document.querySelectorAll('.mapping-select').forEach(select => {
+            const reqCol = select.dataset.column;
+            state.mapping[reqCol] = select.value;
+        });
+        
+        updateMappingStatus();
     }
-    
-    // Resetear estado
-    divisionState.currentColumn = columnName;
-    divisionState.sourceColumn = excelColumn;
-    divisionState.separator = '';
-    divisionState.parts = [];
-    divisionState.columnNames = [];
-    
-    // Los datos están como objetos {columna: valor}, no como arrays
-    divisionState.sourceData = state.excelData.slice(0, 3).map(row => {
-        const value = row[excelColumn];  // Usar nombre de columna, no índice
-        return value || '';
-    });
-    
-    // Validar que haya datos
-    if (divisionState.sourceData.every(d => !d || d === '')) {
-        alert(`⚠️ La columna "${excelColumn}" está vacía\n\n` +
-              'Verifica que:\n' +
-              '1. La columna tenga datos\n' +
-              '2. El mapeo sea correcto\n' +
-              '3. El archivo esté bien procesado');
-        return;
-    }
-    
-    // Actualizar UI
-    document.getElementById('divisionColumnName').textContent = columnName;
-    
-    // Mostrar datos originales
-    const originalDataDiv = document.getElementById('originalData');
-    originalDataDiv.innerHTML = divisionState.sourceData.map((val, idx) => 
-        `<div style="padding: 5px 0; border-bottom: 1px solid #ddd;">
-            Fila ${idx + 1}: <strong style="color: #667eea;">"${val}"</strong>
-        </div>`
-    ).join('');
-    
-    // Resetear inputs
-    document.getElementById('separatorInput').value = '';
-    document.getElementById('livePreview').innerHTML = '<span style="color: #999;">Haz click en un separador común o escribe el tuyo...</span>';
-    document.getElementById('namingSection').style.display = 'none';
-    document.getElementById('newColumnsSection').style.display = 'none';
-    document.getElementById('applyBtn').disabled = true;
-    document.getElementById('applyBtn').style.opacity = '0.5';
-    
-    // Auto-detectar separador más probable
-    const sampleData = divisionState.sourceData[0] || '';
-    let suggestedSeparator = '';
-    
-    if (sampleData.includes(', ')) {
-        suggestedSeparator = ', ';
-    } else if (sampleData.includes(',')) {
-        suggestedSeparator = ',';
-    } else if (sampleData.includes(';')) {
-        suggestedSeparator = ';';
-    } else if (sampleData.includes('-')) {
-        suggestedSeparator = '-';
-    }
-    
-    // Si se detectó un separador, sugerirlo visualmente
-    if (suggestedSeparator) {
-        document.getElementById('livePreview').innerHTML = `
-            <div style="text-align: center; padding: 20px;">
-                <div style="font-size: 1.2em; color: #28a745; margin-bottom: 10px;">
-                    💡 <strong>Separador detectado automáticamente</strong>
+
+    function updateMappingStatus() {
+        const template = getTemplate();
+        const mapped = template.columns.filter(col => state.mapping[col]).length;
+        const withDefault = template.columns.filter(col => !state.mapping[col] && template.defaults[col] !== undefined).length;
+        const unmapped = template.columns.filter(col => !state.mapping[col] && template.defaults[col] === undefined).length;
+        
+        const statusDiv = document.getElementById('mappingStatus');
+        statusDiv.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 5px;">
+                    <span style="font-size: 1.5em;">📊</span>
+                    <strong>Estado del mapeo:</strong>
                 </div>
-                <div style="margin-bottom: 15px;">
-                    Parece que tus datos usan: <code style="background: #e8f5e9; padding: 5px 15px; border-radius: 5px; font-size: 1.3em; color: #2e7d32;">${suggestedSeparator === ' ' ? '(espacio)' : suggestedSeparator}</code>
+                <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+                    <span style="color: #28a745;">✅ Mapeadas: ${mapped}/${template.columns.length}</span>
+                    <span style="color: #ffc107;">🔧 Con valor por defecto: ${withDefault}</span>
+                    <span style="color: #dc3545;">⚠️ Sin mapear: ${unmapped} (quedarán vacías)</span>
                 </div>
-                <button onclick="setSeparator('${suggestedSeparator.replace(/'/g, "\\'")}')" class="btn btn-primary" style="background: #28a745;">
-                    ✅ Usar este separador
-                </button>
             </div>
         `;
     }
-    
-    // Mostrar modal
-    document.getElementById('divisionModal').style.display = 'flex';
-};
 
-// Cerrar modal
-function closeDivisionModal() {
-    document.getElementById('divisionModal').style.display = 'none';
-}
+    // ============================================
+    // DIVISIÓN DE COLUMNAS
+    // ============================================
+    let divisionState = {
+        currentColumn: null,
+        sourceColumn: null,
+        sourceData: [],
+        separator: '',
+        columnNames: []
+    };
 
-// Función para setear separador rápidamente
-window.setSeparator = function(separator) {
-    document.getElementById('separatorInput').value = separator;
-    updateLivePreview();
-};
-
-// Actualizar preview en vivo
-function updateLivePreview() {
-    const separator = document.getElementById('separatorInput').value;
-    
-    if (!separator) {
-        document.getElementById('livePreview').innerHTML = '<span style="color: #999;">Escribe un separador arriba para ver el preview...</span>';
-        document.getElementById('namingSection').style.display = 'none';
-        document.getElementById('newColumnsSection').style.display = 'none';
-        document.getElementById('applyBtn').disabled = true;
-        document.getElementById('applyBtn').style.opacity = '0.5';
-        return;
-    }
-    
-    divisionState.separator = separator;
-    
-    // Dividir datos
-    divisionState.parts = divisionState.sourceData.map(value => {
-        if (!value) return [];
-        return String(value).split(separator);
-    });
-    
-    // Encontrar número máximo de partes
-    const maxParts = Math.max(...divisionState.parts.map(p => p.length), 0);
-    
-    if (maxParts === 0) {
-        document.getElementById('livePreview').innerHTML = '<span style="color: #dc3545;">❌ No se encontró ese separador en los datos</span>';
-        document.getElementById('namingSection').style.display = 'none';
-        document.getElementById('newColumnsSection').style.display = 'none';
-        document.getElementById('applyBtn').disabled = true;
-        document.getElementById('applyBtn').style.opacity = '0.5';
-        return;
-    }
-    
-    // Mostrar preview como tabla
-    let previewHTML = '<table style="width: 100%; border-collapse: collapse;">';
-    
-    // Header
-    previewHTML += '<tr>';
-    for (let i = 0; i < maxParts; i++) {
-        previewHTML += `<th style="padding: 8px; border: 1px solid #28a745; background: #c8e6c9; text-align: left;">Parte ${i + 1}</th>`;
-    }
-    previewHTML += '</tr>';
-    
-    // Datos
-    divisionState.parts.forEach((parts, idx) => {
-        previewHTML += '<tr>';
-        for (let i = 0; i < maxParts; i++) {
-            const value = parts[i] || '';
-            previewHTML += `<td style="padding: 8px; border: 1px solid #28a745; background: white;"><strong>${value}</strong></td>`;
+    function openDivisionModal(columnName) {
+        divisionState.currentColumn = columnName;
+        divisionState.sourceColumn = state.mapping[columnName];
+        
+        if (!divisionState.sourceColumn) {
+            alert('⚠️ Primero mapea esta columna a una columna de tu archivo');
+            return;
         }
-        previewHTML += '</tr>';
-    });
-    
-    previewHTML += '</table>';
-    document.getElementById('livePreview').innerHTML = previewHTML;
-    
-    // Mostrar sección de nombrado
-    showNamingInputs(maxParts);
-}
-
-// Mostrar inputs para nombrar partes
-function showNamingInputs(numParts) {
-    const namingDiv = document.getElementById('namingInputs');
-    namingDiv.innerHTML = '';
-    
-    for (let i = 0; i < numParts; i++) {
-        const input = document.createElement('div');
-        input.innerHTML = `
-            <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #667eea;">
-                Parte ${i + 1}:
-            </label>
-            <input 
-                type="text" 
-                class="column-name-input" 
-                data-part="${i}"
-                placeholder="Ej: apellidos, nombre, dni..."
-                style="width: 100%; padding: 10px; border: 2px solid #667eea; border-radius: 5px; font-size: 1em;"
-                oninput="updateColumnNames()">
-        `;
-        namingDiv.appendChild(input);
-    }
-    
-    document.getElementById('namingSection').style.display = 'block';
-    divisionState.columnNames = new Array(numParts).fill('');
-}
-
-// Actualizar nombres de columnas
-function updateColumnNames() {
-    const inputs = document.querySelectorAll('.column-name-input');
-    divisionState.columnNames = Array.from(inputs).map(input => input.value.trim());
-    
-    // Verificar si todos tienen nombre
-    const allNamed = divisionState.columnNames.every(name => name.length > 0);
-    
-    if (allNamed) {
-        // Mostrar columnas que se crearán
-        const newColsList = document.getElementById('newColumnsList');
-        newColsList.innerHTML = divisionState.columnNames.map(name => 
-            `<div style="display: inline-block; background: #2196f3; color: white; padding: 8px 15px; margin: 5px; border-radius: 20px; font-weight: 600;">
-                📊 ${divisionState.sourceColumn}_${name}
+        
+        // Obtener datos
+        divisionState.sourceData = state.excelData.map(row => row[divisionState.sourceColumn] || '');
+        
+        // Mostrar modal
+        document.getElementById('divisionModal').style.display = 'flex';
+        document.getElementById('divisionModalTitle').textContent = `🔀 Dividir: ${divisionState.sourceColumn}`;
+        
+        // Mostrar datos originales
+        const previewHTML = divisionState.sourceData.slice(0, 5).map((val, idx) => 
+            `<div style="padding: 8px; border-bottom: 1px solid #e0e0e0;">
+                <strong>Fila ${idx + 1}:</strong> "${val}"
             </div>`
         ).join('');
         
-        document.getElementById('newColumnsSection').style.display = 'block';
+        document.getElementById('divisionOriginalData').innerHTML = previewHTML;
         
-        // Habilitar botón
-        document.getElementById('applyBtn').disabled = false;
-        document.getElementById('applyBtn').style.opacity = '1';
-    } else {
-        document.getElementById('newColumnsSection').style.display = 'none';
-        document.getElementById('applyBtn').disabled = true;
-        document.getElementById('applyBtn').style.opacity = '0.5';
+        // Limpiar
+        document.getElementById('divisionSeparatorInput').value = '';
+        document.getElementById('divisionPreview').innerHTML = '<span style="color: #999;">Ingresa un separador para ver el preview...</span>';
+        document.getElementById('divisionNaming').style.display = 'none';
     }
-}
 
-// Aplicar división
-function applyDivision() {
-    if (!divisionState.separator) {
-        alert('⚠️ Debes especificar un separador');
-        return;
+    function closeDivisionModal() {
+        document.getElementById('divisionModal').style.display = 'none';
     }
-    
-    if (divisionState.columnNames.some(name => !name)) {
-        alert('⚠️ Debes nombrar todas las partes');
-        return;
+
+    function setDivisionSeparator(sep) {
+        document.getElementById('divisionSeparatorInput').value = sep;
+        updateDivisionPreview();
     }
-    
-    console.log('🔍 APLICANDO DIVISIÓN:');
-    console.log('  Columna origen:', divisionState.sourceColumn);
-    console.log('  Separador:', divisionState.separator);
-    console.log('  Nombres de partes:', divisionState.columnNames);
-    
-    // Obtener columna origen
-    const sourceCol = divisionState.sourceColumn;
-    
-    // Procesar TODOS los datos (los datos son objetos, no arrays)
-    const allParts = state.excelData.map(row => {
-        const value = row[sourceCol] || '';  // Usar nombre de columna
-        const parts = String(value).split(divisionState.separator);
-        console.log(`  "${value}" → [${parts.join(' | ')}]`);
-        return parts;
-    });
-    
-    console.log('  Total filas procesadas:', allParts.length);
-    
-    // Crear nuevas columnas
-    divisionState.columnNames.forEach((colName, partIndex) => {
-        const newColName = `${sourceCol}_${colName}`;
+
+    function updateDivisionPreview() {
+        const separator = document.getElementById('divisionSeparatorInput').value;
         
-        console.log(`\n  Creando columna: ${newColName} (parte ${partIndex})`);
-        
-        // Agregar columna si no existe
-        if (!state.excelColumns.includes(newColName)) {
-            state.excelColumns.push(newColName);
-            console.log(`    ✅ Columna agregada a excelColumns`);
+        if (!separator) {
+            document.getElementById('divisionPreview').innerHTML = '<span style="color: #999;">Ingresa un separador...</span>';
+            document.getElementById('divisionNaming').style.display = 'none';
+            document.getElementById('divisionApplyBtn').disabled = true;
+            return;
         }
         
-        // Agregar datos a cada fila (usando objetos)
-        let valuesAdded = 0;
-        allParts.forEach((parts, rowIndex) => {
-            const value = parts[partIndex] || '';
-            state.excelData[rowIndex][newColName] = value;  // Asignar al objeto
-            if (value) valuesAdded++;
+        divisionState.separator = separator;
+        
+        // Preview
+        const previewData = divisionState.sourceData.slice(0, 5).map((val, rowIdx) => {
+            const parts = String(val).split(separator);
+            return `
+                <div style="padding: 10px; border: 1px solid #28a745; border-radius: 5px; margin-bottom: 10px; background: white;">
+                    <strong>Fila ${rowIdx + 1}:</strong> "${val}"
+                    <div style="margin-top: 5px; padding-left: 20px;">
+                        ${parts.map((part, idx) => `
+                            <div style="color: #667eea;">
+                                → Parte ${idx + 1}: "<strong>${part}</strong>"
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
+        document.getElementById('divisionPreview').innerHTML = previewData;
+        
+        // Detectar número de partes
+        const maxParts = Math.max(...divisionState.sourceData.map(val => String(val).split(separator).length));
+        
+        // Mostrar inputs de nombres
+        showDivisionNaming(maxParts);
+        
+        document.getElementById('divisionApplyBtn').disabled = false;
+        document.getElementById('divisionApplyBtn').style.opacity = '1';
+    }
+
+    function showDivisionNaming(numParts) {
+        const html = Array.from({ length: numParts }, (_, i) => `
+            <div style="margin-bottom: 10px;">
+                <label style="display: block; margin-bottom: 5px; font-weight: 600;">
+                    Nombre para Parte ${i + 1}:
+                </label>
+                <input 
+                    type="text" 
+                    class="division-part-name" 
+                    data-index="${i}"
+                    placeholder="Ej: apellidos, nombre, etc."
+                    style="width: 100%; padding: 10px; border: 2px solid #667eea; border-radius: 5px;">
+            </div>
+        `).join('');
+        
+        document.getElementById('divisionNamingInputs').innerHTML = html;
+        document.getElementById('divisionNaming').style.display = 'block';
+    }
+
+    function applyDivision() {
+        // Obtener nombres
+        const names = Array.from(document.querySelectorAll('.division-part-name')).map(input => {
+            return input.value.trim() || `parte${input.dataset.index}`;
         });
-        console.log(`    ✅ ${valuesAdded}/${allParts.length} valores agregados`);
         
-        // Actualizar mapeo automático si coincide
-        const template = COMMAND_TEMPLATES[state.selectedCommand];
-        const requiredCols = template.columns;
-        const matchingRequired = requiredCols.find(req => 
-            req.toLowerCase() === colName.toLowerCase()
-        );
-        if (matchingRequired) {
-            // Forzar el mapeo a la nueva columna
-            state.mapping[matchingRequired] = newColName;
+        divisionState.columnNames = names;
+        
+        // Crear nuevas columnas
+        const newColumns = names.map(name => `${divisionState.sourceColumn}_${name}`);
+        
+        // Procesar datos
+        state.excelData.forEach(row => {
+            const value = row[divisionState.sourceColumn] || '';
+            const parts = String(value).split(divisionState.separator);
             
-            console.log(`    ✅ Mapeado: ${matchingRequired} → ${newColName}`);
-        } else {
-            console.log(`    ⚠️ No se encontró mapeo automático para "${colName}"`);
-        }
-    });
-    
-    // Cerrar modal
-    closeDivisionModal();
-    
-    // Refrescar la tabla de mapeo con las nuevas columnas
-    setupMapping();
-    
-    // Actualizar preview
-    generatePreview();
-    
-    // Mensaje de éxito con info de mapeo
-    const createdCols = divisionState.columnNames.map((name, idx) => {
-        const newColName = `${sourceCol}_${name}`;
-        const template = COMMAND_TEMPLATES[state.selectedCommand];
-        const mappedTo = template.columns.find(req => 
-            req.toLowerCase() === name.toLowerCase()
-        );
-        if (mappedTo) {
-            return `• ${newColName} → "${mappedTo}"`;
-        }
-        return `• ${newColName}`;
-    }).join('\n');
-    
-    alert(`✅ División aplicada!\n\nColumnas creadas y mapeadas:\n${createdCols}`);
-}
+            names.forEach((name, idx) => {
+                const newColName = `${divisionState.sourceColumn}_${name}`;
+                row[newColName] = parts[idx] || '';
+            });
+        });
+        
+        // Agregar a columnas disponibles
+        newColumns.forEach(col => {
+            if (!state.excelColumns.includes(col)) {
+                state.excelColumns.push(col);
+            }
+        });
+        
+        // Auto-mapear si coincide
+        newColumns.forEach((newCol, idx) => {
+            const partName = names[idx];
+            const matchingRequired = Object.keys(state.mapping).find(req => 
+                req.toLowerCase().includes(partName.toLowerCase()) ||
+                partName.toLowerCase().includes(req.toLowerCase())
+            );
+            
+            if (matchingRequired) {
+                state.mapping[matchingRequired] = newCol;
+            }
+        });
+        
+        // Refrescar tabla
+        renderMappingTable();
+        
+        // Cerrar modal
+        closeDivisionModal();
+        
+        alert(`✅ División exitosa!\n\nColumnas creadas:\n${newColumns.join('\n')}`);
+    }
+
+    // Eventos del modal
+    window.closeDivisionModal = closeDivisionModal;
+    window.setDivisionSeparator = setDivisionSeparator;
+    window.updateDivisionPreview = updateDivisionPreview;
+    window.applyDivision = applyDivision;
+
+    // ============================================
+    // PREVIEW Y GENERACIÓN
+    // ============================================
+    function generatePreview() {
+        const template = getTemplate();
+        
+        // Generar CSV data
+        const csvData = state.excelData.map(row => {
+            const csvRow = {};
+            template.columns.forEach(col => {
+                if (state.mapping[col]) {
+                    csvRow[col] = row[state.mapping[col]] || '';
+                } else if (template.defaults[col] !== undefined) {
+                    csvRow[col] = template.defaults[col];
+                } else {
+                    csvRow[col] = '';
+                }
+            });
+            return csvRow;
+        });
+        
+        // Mostrar preview
+        document.getElementById('previewSection').style.display = 'block';
+        
+        const previewHTML = `
+            <div style="overflow-x: auto;">
+                <table class="preview-table">
+                    <thead>
+                        <tr>
+                            ${template.columns.map(col => `<th>${col}</th>`).join('')}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${csvData.slice(0, 10).map(row => `
+                            <tr>
+                                ${template.columns.map(col => `<td>${row[col]}</td>`).join('')}
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+            ${csvData.length > 10 ? `<p style="margin-top: 10px; color: #666;">Mostrando 10 de ${csvData.length} filas</p>` : ''}
+        `;
+        
+        document.getElementById('previewTable').innerHTML = previewHTML;
+        
+        // Guardar para descarga
+        window.generatedCSVData = csvData;
+        
+        // Scroll
+        document.getElementById('previewSection').scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center' 
+        });
+    }
+
+    // ============================================
+    // DESCARGA Y RESET
+    // ============================================
+    function setupDownload() {
+        document.getElementById('downloadBtn').onclick = () => {
+            if (!window.generatedCSVData) {
+                alert('⚠️ Primero genera el preview');
+                return;
+            }
+            
+            const template = getTemplate();
+            const csvContent = [
+                template.columns.join(','),
+                ...window.generatedCSVData.map(row => 
+                    template.columns.map(col => `"${row[col]}"`).join(',')
+                )
+            ].join('\n');
+            
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `${state.selectedProduct}_${state.selectedCommand}_${Date.now()}.csv`;
+            link.click();
+        };
+    }
+
+    function setupReset() {
+        document.getElementById('resetBtn').onclick = () => {
+            if (confirm('¿Seguro que quieres reiniciar? Se perderán todos los datos.')) {
+                location.reload();
+            }
+        };
+    }
+
+})();
