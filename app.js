@@ -38,11 +38,11 @@
         ivsign: {
             'users-add': {
                 columns: ['userid', 'email', 'nombre', 'apellidos', 'dni', 'telefono', 'rol', 'password'],
-                defaults: { rol: 'admin', password: '---' }
+                defaults: {}
             },
             'users-modify': {
                 columns: ['userid', 'email', 'nombre', 'apellidos', 'dni', 'telefono', 'rol'],
-                defaults: { rol: 'admin' }
+                defaults: {}
             },
             'users-delete': {
                 columns: ['userid'],
@@ -50,23 +50,23 @@
             },
             'certs-add': {
                 columns: ['userid', 'certType', 'p12File', 'p12Pass'],
-                defaults: { certType: 'qualified' }
+                defaults: {}
             },
             'certs-modify': {
                 columns: ['userid', 'certType', 'p12File', 'p12Pass'],
-                defaults: { certType: 'qualified' }
+                defaults: {}
             },
             'certs-delegate': {
                 columns: ['userid', 'certType', 'certSerial', 'certOwner'],
-                defaults: { certType: 'qualified' }
+                defaults: {}
             },
             'delegs-add': {
                 columns: ['userid', 'delegType', 'delegUser', 'delegStart', 'delegEnd'],
-                defaults: { delegType: 'permanent' }
+                defaults: {}
             },
             'delegs-modify': {
                 columns: ['userid', 'delegType', 'delegUser', 'delegStart', 'delegEnd'],
-                defaults: { delegType: 'permanent' }
+                defaults: {}
             },
             'delegs-delete': {
                 columns: ['userid', 'delegUser'],
@@ -74,11 +74,11 @@
             },
             'rules-add': {
                 columns: ['userid', 'ruleType', 'ruleValue'],
-                defaults: { ruleType: 'email' }
+                defaults: {}
             },
             'rules-modify': {
                 columns: ['userid', 'ruleType', 'ruleValue'],
-                defaults: { ruleType: 'email' }
+                defaults: {}
             }
         },
         ivneos: {
@@ -92,7 +92,7 @@
             },
             'usuarios': {
                 columns: ['userid', 'email', 'nombre', 'apellidos', 'dni', 'telefono', 'grupo'],
-                defaults: { grupo: 'usuarios' }
+                defaults: {}
             }
         }
     };
