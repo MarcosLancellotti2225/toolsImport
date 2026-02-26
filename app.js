@@ -502,27 +502,41 @@
         });
 
         document.getElementById('loadSheetsBtn').onclick = () => {
+            console.log('🟢 loadSheetsBtn clicked');
             const selectedIndexes = Array.from(document.querySelectorAll('.sheet-checkbox:checked')).map(cb => parseInt(cb.value));
+            console.log('🟢 selectedIndexes:', selectedIndexes);
 
-            if (selectedIndexes.length === 0) return;
-
-            if (selectedIndexes.length === 1) {
-                // Una sola hoja: comportamiento clásico sin prefijo
-                const sheetName = workbook.SheetNames[selectedIndexes[0]];
-                const result = processSheet(workbook, sheetName);
-                state.excelColumns = result.columns;
-                state.excelData = result.data;
-            } else {
-                // Múltiples hojas: mergear con prefijo
-                const merged = mergeSheets(workbook, selectedIndexes);
-                state.excelColumns = merged.columns;
-                state.excelData = merged.data;
+            if (selectedIndexes.length === 0) {
+                console.log('🔴 No sheets selected, returning');
+                return;
             }
 
-            document.getElementById('sheetSelectorDiv').remove();
+            try {
+                if (selectedIndexes.length === 1) {
+                    // Una sola hoja: comportamiento clásico sin prefijo
+                    const sheetName = workbook.SheetNames[selectedIndexes[0]];
+                    console.log('🟢 Processing single sheet:', sheetName);
+                    const result = processSheet(workbook, sheetName);
+                    console.log('🟢 Sheet result - columns:', result.columns, 'rows:', result.data.length);
+                    state.excelColumns = result.columns;
+                    state.excelData = result.data;
+                } else {
+                    // Múltiples hojas: mergear con prefijo
+                    console.log('🟢 Merging', selectedIndexes.length, 'sheets');
+                    const merged = mergeSheets(workbook, selectedIndexes);
+                    console.log('🟢 Merged result - columns:', merged.columns, 'rows:', merged.data.length);
+                    state.excelColumns = merged.columns;
+                    state.excelData = merged.data;
+                }
 
-            // Multi-hoja: ir directo al mapeo (headers ya procesados)
-            setupMapping();
+                document.getElementById('sheetSelectorDiv').remove();
+                console.log('🟢 Calling setupMapping...');
+                setupMapping();
+                console.log('🟢 setupMapping completed');
+            } catch (err) {
+                console.error('🔴 Error in sheet loading:', err);
+                alert('Error al cargar hojas: ' + err.message);
+            }
         };
 
         // Mostrar y hacer scroll al selector
@@ -570,15 +584,18 @@
     }
 
     function processSheet(workbook, sheetName) {
+        console.log('🟡 processSheet called for:', sheetName);
         const sheet = workbook.Sheets[sheetName];
         const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-        
+        console.log('🟡 rawData rows:', rawData.length);
+
         if (rawData.length === 0) {
             throw new Error('La hoja está vacía');
         }
-        
+
         // Asumir que tiene header por defecto
         const columns = rawData[0].map(h => String(h).trim());
+        console.log('🟡 columns found:', columns);
         const dataRows = rawData.slice(1);
         
         const data = dataRows.map(row => {
@@ -644,8 +661,12 @@
     // MAPEO DE COLUMNAS
     // ============================================
     function setupMapping() {
+        console.log('🔵 setupMapping called');
+        console.log('🔵 state.excelColumns:', state.excelColumns);
+        console.log('🔵 state.excelData length:', state.excelData.length);
         const template = getTemplate();
-        
+        console.log('🔵 template columns:', template.columns);
+
         // Auto-mapeo
         state.mapping = {};
         let autoMappedCount = 0;
