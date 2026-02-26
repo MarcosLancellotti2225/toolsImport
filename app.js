@@ -593,11 +593,37 @@
             throw new Error('La hoja está vacía');
         }
 
-        // Asumir que tiene header por defecto
-        const columns = rawData[0].map(h => String(h).trim());
-        console.log('🟡 columns found:', columns);
-        const dataRows = rawData.slice(1);
-        
+        // Detectar si la primera fila tiene headers reales
+        const firstRow = rawData[0].map(h => String(h).trim());
+        const hasRealHeaders = firstRow.some(h => h !== '');
+        console.log('🟡 hasRealHeaders:', hasRealHeaders, 'firstRow:', firstRow);
+
+        let columns;
+        let dataRows;
+
+        if (hasRealHeaders) {
+            // Primera fila es header
+            columns = firstRow;
+            dataRows = rawData.slice(1);
+        } else {
+            // Primera fila está vacía → generar nombres de columna
+            const numCols = rawData[0].length;
+            columns = Array.from({ length: numCols }, (_, i) => {
+                let col = '';
+                let n = i;
+                while (n >= 0) {
+                    col = String.fromCharCode(65 + (n % 26)) + col;
+                    n = Math.floor(n / 26) - 1;
+                }
+                return `Columna ${col}`;
+            });
+            // Buscar la primera fila con datos reales
+            const firstDataIdx = rawData.findIndex(row => row.some(cell => String(cell).trim() !== ''));
+            dataRows = firstDataIdx >= 0 ? rawData.slice(firstDataIdx) : rawData;
+            console.log('🟡 Generated columns:', columns, 'data starts at row:', firstDataIdx);
+        }
+
+        console.log('🟡 final columns:', columns);
         const data = dataRows.map(row => {
             const obj = {};
             columns.forEach((col, idx) => {
