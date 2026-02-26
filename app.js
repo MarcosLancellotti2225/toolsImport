@@ -1,6 +1,6 @@
 // ============================================
-// CSV Generator v4.5.2
-// Multi-format + Multi-sheet merge + Transformations
+// CSV Generator v4.5.3
+// Multi-format + Range config + Transformations
 // ============================================
 
 (function() {
@@ -419,7 +419,7 @@
         }
     }
 
-    // Cargar XLSX con soporte multi-hoja v4.5.2
+    // v4.5.3: Cargar XLSX - siempre muestra configurador de rango
     async function loadXLSXFile(file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -431,13 +431,13 @@
                     state.currentWorkbook = workbook;
 
                     if (workbook.SheetNames.length > 1) {
-                        // Multi-hoja: mostrar selector y NO resolver aún
+                        // Multi-hoja: mostrar selector primero
                         showSheetSelector(workbook);
-                        resolve(null); // Señal para que handleFileUpload no continúe
                     } else {
-                        const result = processSheet(workbook, workbook.SheetNames[0]);
-                        resolve(result);
+                        // Una sola hoja: ir directo al configurador de rango
+                        showRangeConfigurator(workbook, [0]);
                     }
+                    resolve(null); // El flujo continúa desde el configurador de rango
                 } catch (error) {
                     reject(error);
                 }
@@ -506,37 +506,11 @@
             const selectedIndexes = Array.from(document.querySelectorAll('.sheet-checkbox:checked')).map(cb => parseInt(cb.value));
             console.log('🟢 selectedIndexes:', selectedIndexes);
 
-            if (selectedIndexes.length === 0) {
-                console.log('🔴 No sheets selected, returning');
-                return;
-            }
+            if (selectedIndexes.length === 0) return;
 
-            try {
-                if (selectedIndexes.length === 1) {
-                    // Una sola hoja: comportamiento clásico sin prefijo
-                    const sheetName = workbook.SheetNames[selectedIndexes[0]];
-                    console.log('🟢 Processing single sheet:', sheetName);
-                    const result = processSheet(workbook, sheetName);
-                    console.log('🟢 Sheet result - columns:', result.columns, 'rows:', result.data.length);
-                    state.excelColumns = result.columns;
-                    state.excelData = result.data;
-                } else {
-                    // Múltiples hojas: mergear con prefijo
-                    console.log('🟢 Merging', selectedIndexes.length, 'sheets');
-                    const merged = mergeSheets(workbook, selectedIndexes);
-                    console.log('🟢 Merged result - columns:', merged.columns, 'rows:', merged.data.length);
-                    state.excelColumns = merged.columns;
-                    state.excelData = merged.data;
-                }
-
-                document.getElementById('sheetSelectorDiv').remove();
-                console.log('🟢 Calling setupMapping...');
-                setupMapping();
-                console.log('🟢 setupMapping completed');
-            } catch (err) {
-                console.error('🔴 Error in sheet loading:', err);
-                alert('Error al cargar hojas: ' + err.message);
-            }
+            // Guardar selección y mostrar configurador de rango
+            document.getElementById('sheetSelectorDiv').remove();
+            showRangeConfigurator(workbook, selectedIndexes);
         };
 
         // Mostrar y hacer scroll al selector
@@ -546,15 +520,171 @@
         });
     }
 
-    // v4.5.2: Mergear columnas de múltiples hojas
-    function mergeSheets(workbook, sheetIndexes) {
+    // v4.5.3: Configurador de rango - muestra preview crudo y deja elegir header y rango
+    function showRangeConfigurator(workbook, selectedIndexes) {
+        // Limpiar previo
+        const prev = document.getElementById('rangeConfigDiv');
+        if (prev) prev.remove();
+
+        // Obtener raw data de la primera hoja seleccionada para preview
+        const firstSheetName = workbook.SheetNames[selectedIndexes[0]];
+        const firstSheet = workbook.Sheets[firstSheetName];
+        const rawPreview = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
+
+        // Auto-detectar: buscar la primera fila donde la mayoría de celdas tienen contenido
+        let autoHeaderRow = 0;
+        for (let i = 0; i < Math.min(rawPreview.length, 30); i++) {
+            const filledCells = rawPreview[i].filter(cell => String(cell).trim() !== '').length;
+            if (filledCells >= 2) {
+                autoHeaderRow = i;
+                break;
+            }
+        }
+
+        // Generar tabla preview (primeras 25 filas)
+        const previewRows = rawPreview.slice(0, 25);
+        const maxCols = Math.max(...previewRows.map(r => r.length), 1);
+
+        const tableHTML = previewRows.map((row, idx) => {
+            const isHeader = idx === autoHeaderRow;
+            const rowStyle = isHeader
+                ? 'background:#667eea;color:white;font-weight:bold;'
+                : (idx % 2 === 0 ? 'background:#f8f9ff;' : 'background:white;');
+            const cells = Array.from({ length: maxCols }, (_, c) => {
+                const val = row[c] !== undefined ? String(row[c]).trim() : '';
+                return `<td style="padding:4px 8px;border:1px solid #e0e0e0;font-size:0.85em;white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis;">${sanitizeHTML(val) || '<span style="color:#ccc;">-</span>'}</td>`;
+            }).join('');
+            return `<tr style="${rowStyle}" data-row-idx="${idx}">
+                <td style="padding:4px 8px;border:1px solid #e0e0e0;font-weight:bold;color:#667eea;text-align:center;min-width:40px;cursor:pointer;" class="row-number-cell" title="Click para marcar como encabezado">${idx + 1}</td>
+                ${cells}
+            </tr>`;
+        }).join('');
+
+        const html = `
+            <div style="margin: 20px 0; padding: 20px; background: #f8f9ff; border: 2px solid #667eea; border-radius: 10px;">
+                <h4 style="color: #667eea; margin-bottom: 10px;">
+                    📋 Configurar rango de datos ${selectedIndexes.length > 1 ? '(preview de: ' + sanitizeHTML(firstSheetName) + ')' : ''}
+                </h4>
+                <p style="margin-bottom: 15px; color: #666;">
+                    Hacé click en el número de fila para marcarla como <strong>encabezado</strong>. Los datos se tomarán desde la fila siguiente.
+                </p>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:15px;">
+                    <div>
+                        <label style="display:block;margin-bottom:5px;font-weight:600;font-size:0.9em;">Fila de encabezados:</label>
+                        <input type="number" id="headerRowInput" value="${autoHeaderRow + 1}" min="1" max="${rawPreview.length}"
+                            style="width:100%;padding:10px;border:2px solid #667eea;border-radius:8px;font-size:1em;text-align:center;">
+                    </div>
+                    <div>
+                        <label style="display:block;margin-bottom:5px;font-weight:600;font-size:0.9em;">Datos desde fila:</label>
+                        <input type="number" id="dataStartInput" value="${autoHeaderRow + 2}" min="1" max="${rawPreview.length}"
+                            style="width:100%;padding:10px;border:2px solid #667eea;border-radius:8px;font-size:1em;text-align:center;">
+                    </div>
+                    <div>
+                        <label style="display:block;margin-bottom:5px;font-weight:600;font-size:0.9em;">Datos hasta fila: <span style="color:#999;">(vacío = todas)</span></label>
+                        <input type="number" id="dataEndInput" value="" min="1" max="${rawPreview.length}" placeholder="Última"
+                            style="width:100%;padding:10px;border:2px solid #667eea;border-radius:8px;font-size:1em;text-align:center;">
+                    </div>
+                </div>
+
+                <div style="overflow-x:auto;max-height:400px;overflow-y:auto;border:2px solid #e0e0e0;border-radius:8px;margin-bottom:15px;">
+                    <table style="border-collapse:collapse;width:100%;">
+                        <tbody id="rangePreviewBody">
+                            ${tableHTML}
+                        </tbody>
+                    </table>
+                </div>
+                ${rawPreview.length > 25 ? `<p style="color:#666;font-size:0.85em;margin-bottom:10px;">Mostrando 25 de ${rawPreview.length} filas</p>` : ''}
+
+                <button id="applyRangeBtn" class="btn btn-primary" style="width: 100%;">
+                    ✅ Aplicar y Continuar al Mapeo
+                </button>
+            </div>
+        `;
+
+        const container = document.getElementById('headerOption');
+        container.insertAdjacentHTML('beforebegin', `<div id="rangeConfigDiv">${html}</div>`);
+
+        // Click en número de fila = marcar como header
+        document.querySelectorAll('.row-number-cell').forEach(cell => {
+            cell.onclick = () => {
+                const rowIdx = parseInt(cell.parentElement.dataset.rowIdx);
+                document.getElementById('headerRowInput').value = rowIdx + 1;
+                document.getElementById('dataStartInput').value = rowIdx + 2;
+                highlightHeaderRow(rowIdx);
+            };
+        });
+
+        // Cambio manual del input de header
+        document.getElementById('headerRowInput').oninput = () => {
+            const val = parseInt(document.getElementById('headerRowInput').value);
+            if (val >= 1) {
+                document.getElementById('dataStartInput').value = val + 1;
+                highlightHeaderRow(val - 1);
+            }
+        };
+
+        function highlightHeaderRow(rowIdx) {
+            document.querySelectorAll('#rangePreviewBody tr').forEach(tr => {
+                const idx = parseInt(tr.dataset.rowIdx);
+                if (idx === rowIdx) {
+                    tr.style.background = '#667eea';
+                    tr.style.color = 'white';
+                    tr.style.fontWeight = 'bold';
+                } else {
+                    tr.style.background = idx % 2 === 0 ? '#f8f9ff' : 'white';
+                    tr.style.color = '';
+                    tr.style.fontWeight = '';
+                }
+            });
+        }
+
+        // Botón aplicar
+        document.getElementById('applyRangeBtn').onclick = () => {
+            const headerRow = parseInt(document.getElementById('headerRowInput').value) - 1;
+            const dataStart = parseInt(document.getElementById('dataStartInput').value) - 1;
+            const dataEndVal = document.getElementById('dataEndInput').value;
+            const dataEnd = dataEndVal ? parseInt(dataEndVal) : null; // null = hasta el final
+
+            console.log('🟢 Range config: headerRow=', headerRow, 'dataStart=', dataStart, 'dataEnd=', dataEnd);
+
+            const rangeConfig = { headerRow, dataStart, dataEnd };
+
+            try {
+                if (selectedIndexes.length === 1) {
+                    const sheetName = workbook.SheetNames[selectedIndexes[0]];
+                    const result = processSheet(workbook, sheetName, rangeConfig);
+                    console.log('🟢 Sheet result - columns:', result.columns, 'rows:', result.data.length);
+                    state.excelColumns = result.columns;
+                    state.excelData = result.data;
+                } else {
+                    const merged = mergeSheets(workbook, selectedIndexes, rangeConfig);
+                    console.log('🟢 Merged result - columns:', merged.columns, 'rows:', merged.data.length);
+                    state.excelColumns = merged.columns;
+                    state.excelData = merged.data;
+                }
+
+                document.getElementById('rangeConfigDiv').remove();
+                console.log('🟢 Calling setupMapping...');
+                setupMapping();
+                console.log('🟢 setupMapping completed');
+            } catch (err) {
+                console.error('🔴 Error processing sheets:', err);
+                alert('Error al procesar: ' + err.message);
+            }
+        };
+
+        document.getElementById('rangeConfigDiv').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // v4.5.3: Mergear columnas de múltiples hojas
+    function mergeSheets(workbook, sheetIndexes, rangeConfig) {
         const sheetsData = sheetIndexes.map(idx => {
             const name = workbook.SheetNames[idx];
-            const result = processSheet(workbook, name);
+            const result = processSheet(workbook, name, rangeConfig);
             return { name, ...result };
         });
 
-        // Combinar columnas con prefijo "[Hoja] columna"
         const allColumns = [];
         sheetsData.forEach(sheet => {
             sheet.columns.forEach(col => {
@@ -563,10 +693,7 @@
             });
         });
 
-        // Determinar máximo de filas
         const maxRows = Math.max(...sheetsData.map(s => s.data.length));
-
-        // Mergear datos fila por fila
         const mergedData = [];
         for (let i = 0; i < maxRows; i++) {
             const row = {};
@@ -583,56 +710,71 @@
         return { columns: allColumns, data: mergedData };
     }
 
-    function processSheet(workbook, sheetName) {
-        console.log('🟡 processSheet called for:', sheetName);
+    // v4.5.3: processSheet con rango configurable
+    function processSheet(workbook, sheetName, rangeConfig) {
+        console.log('🟡 processSheet called for:', sheetName, 'rangeConfig:', rangeConfig);
         const sheet = workbook.Sheets[sheetName];
         const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
         console.log('🟡 rawData rows:', rawData.length);
 
         if (rawData.length === 0) {
-            throw new Error('La hoja está vacía');
+            throw new Error('La hoja "' + sheetName + '" está vacía');
         }
 
-        // Detectar si la primera fila tiene headers reales
-        const firstRow = rawData[0].map(h => String(h).trim());
-        const hasRealHeaders = firstRow.some(h => h !== '');
-        console.log('🟡 hasRealHeaders:', hasRealHeaders, 'firstRow:', firstRow);
+        let headerRow, dataStart, dataEnd;
 
-        let columns;
-        let dataRows;
-
-        if (hasRealHeaders) {
-            // Primera fila es header
-            columns = firstRow;
-            dataRows = rawData.slice(1);
+        if (rangeConfig) {
+            headerRow = rangeConfig.headerRow;
+            dataStart = rangeConfig.dataStart;
+            dataEnd = rangeConfig.dataEnd || rawData.length;
         } else {
-            // Primera fila está vacía → generar nombres de columna
-            const numCols = rawData[0].length;
-            columns = Array.from({ length: numCols }, (_, i) => {
-                let col = '';
-                let n = i;
-                while (n >= 0) {
-                    col = String.fromCharCode(65 + (n % 26)) + col;
-                    n = Math.floor(n / 26) - 1;
+            // Auto-detect: primera fila con al menos 2 celdas con contenido
+            headerRow = 0;
+            for (let i = 0; i < Math.min(rawData.length, 30); i++) {
+                const filled = rawData[i].filter(cell => String(cell).trim() !== '').length;
+                if (filled >= 2) {
+                    headerRow = i;
+                    break;
                 }
-                return `Columna ${col}`;
-            });
-            // Buscar la primera fila con datos reales
-            const firstDataIdx = rawData.findIndex(row => row.some(cell => String(cell).trim() !== ''));
-            dataRows = firstDataIdx >= 0 ? rawData.slice(firstDataIdx) : rawData;
-            console.log('🟡 Generated columns:', columns, 'data starts at row:', firstDataIdx);
+            }
+            dataStart = headerRow + 1;
+            dataEnd = rawData.length;
         }
 
-        console.log('🟡 final columns:', columns);
+        console.log('🟡 Using headerRow:', headerRow, 'dataStart:', dataStart, 'dataEnd:', dataEnd);
+
+        // Extraer columnas del header row
+        const columns = rawData[headerRow].map(h => {
+            const val = String(h).trim();
+            return val || null;
+        });
+
+        // Filtrar columnas vacías y generar nombres para las que no tienen
+        const finalColumns = columns.map((col, idx) => {
+            if (col) return col;
+            let letter = '';
+            let n = idx;
+            while (n >= 0) {
+                letter = String.fromCharCode(65 + (n % 26)) + letter;
+                n = Math.floor(n / 26) - 1;
+            }
+            return `Columna ${letter}`;
+        });
+
+        console.log('🟡 final columns:', finalColumns);
+
+        // Extraer datos del rango
+        const dataRows = rawData.slice(dataStart, dataEnd);
         const data = dataRows.map(row => {
             const obj = {};
-            columns.forEach((col, idx) => {
+            finalColumns.forEach((col, idx) => {
                 obj[col] = row[idx] !== undefined ? String(row[idx]).trim() : '';
             });
             return obj;
         });
-        
-        return { columns, data };
+
+        console.log('🟡 Processed', data.length, 'data rows');
+        return { columns: finalColumns, data };
     }
 
     // ============================================
