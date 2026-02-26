@@ -1,6 +1,6 @@
 // ============================================
-// CSV Generator v4.5.1
-// Multi-format + Multi-sheet + Transformations
+// CSV Generator v4.5.2
+// Multi-format + Multi-sheet merge + Transformations
 // ============================================
 
 (function() {
@@ -394,16 +394,19 @@
                     break;
             }
             
+            // v4.5.2: Si result es null, el flujo multi-hoja se encarga solo
+            if (!result) return;
+
             // Guardar datos
             state.excelColumns = result.columns;
             state.excelData = result.data;
-            
+
             // Mostrar opciones de header (solo para XLSX)
             if (state.selectedFormat === 'xlsx') {
                 document.getElementById('headerOption').style.display = 'block';
-                document.getElementById('headerOption').scrollIntoView({ 
-                    behavior: 'smooth', 
-                    block: 'center' 
+                document.getElementById('headerOption').scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center'
                 });
             } else {
                 // Para otros formatos, ir directo al mapeo
@@ -416,75 +419,156 @@
         }
     }
 
-    // Cargar XLSX con soporte multi-hoja
+    // Cargar XLSX con soporte multi-hoja v4.5.2
     async function loadXLSXFile(file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
-            
+
             reader.onload = (e) => {
                 try {
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, { type: 'array' });
                     state.currentWorkbook = workbook;
-                    
-                    // Si hay múltiples hojas, mostrar selector
+
                     if (workbook.SheetNames.length > 1) {
+                        // Multi-hoja: mostrar selector y NO resolver aún
                         showSheetSelector(workbook);
-                        resolve({ columns: [], data: [] }); // Placeholder
+                        resolve(null); // Señal para que handleFileUpload no continúe
                     } else {
-                        // Solo una hoja
                         const result = processSheet(workbook, workbook.SheetNames[0]);
                         resolve(result);
                     }
-                    
                 } catch (error) {
                     reject(error);
                 }
             };
-            
+
             reader.onerror = () => reject(new Error('Error al leer el archivo'));
             reader.readAsArrayBuffer(file);
         });
     }
 
+    // v4.5.2: Selector multi-hoja con checkboxes
     function showSheetSelector(workbook) {
+        // Limpiar selector previo si existe
+        const prev = document.getElementById('sheetSelectorDiv');
+        if (prev) prev.remove();
+
         const html = `
             <div style="margin: 20px 0; padding: 20px; background: #f8f9ff; border: 2px solid #667eea; border-radius: 10px;">
                 <h4 style="color: #667eea; margin-bottom: 15px;">
                     📑 Este archivo tiene ${workbook.SheetNames.length} hojas
                 </h4>
-                <p style="margin-bottom: 15px; color: #666;">
-                    Selecciona qué hoja quieres procesar:
+                <p style="margin-bottom: 10px; color: #666;">
+                    Selecciona una o varias hojas. Si seleccionas varias, las columnas se combinan con prefijo de hoja.
                 </p>
-                <select id="sheetSelector" style="width: 100%; padding: 12px; border: 2px solid #667eea; border-radius: 8px; font-size: 1em; margin-bottom: 15px;">
-                    ${workbook.SheetNames.map((name, idx) => 
-                        `<option value="${idx}">${name}</option>`
-                    ).join('')}
-                </select>
-                <button id="loadSheetBtn" class="btn btn-primary" style="width: 100%;">
-                    ✅ Cargar Hoja Seleccionada
+                <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px;">
+                    ${workbook.SheetNames.map((name, idx) => {
+                        const sheet = workbook.Sheets[name];
+                        const raw = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+                        const rowCount = raw.length > 0 ? raw.length - 1 : 0;
+                        const colCount = raw.length > 0 ? raw[0].length : 0;
+                        return `<label style="display:flex;align-items:center;gap:10px;padding:12px;border:2px solid #e0e0e0;border-radius:8px;cursor:pointer;transition:all 0.3s;" class="sheet-checkbox-label">
+                            <input type="checkbox" class="sheet-checkbox" value="${idx}" style="width:18px;height:18px;">
+                            <div>
+                                <strong>${sanitizeHTML(name)}</strong>
+                                <span style="color:#666;font-size:0.85em;margin-left:8px;">${colCount} columnas, ${rowCount} filas</span>
+                            </div>
+                        </label>`;
+                    }).join('')}
+                </div>
+                <button id="loadSheetsBtn" class="btn btn-primary" style="width: 100%;" disabled>
+                    ✅ Cargar Hojas Seleccionadas
                 </button>
             </div>
         `;
-        
+
         const container = document.getElementById('headerOption');
         container.insertAdjacentHTML('beforebegin', `<div id="sheetSelectorDiv">${html}</div>`);
-        
-        document.getElementById('loadSheetBtn').onclick = () => {
-            const idx = document.getElementById('sheetSelector').value;
-            const sheetName = workbook.SheetNames[idx];
-            const result = processSheet(workbook, sheetName);
-            
-            state.excelColumns = result.columns;
-            state.excelData = result.data;
-            
+
+        // Habilitar botón cuando hay al menos un checkbox marcado
+        document.querySelectorAll('.sheet-checkbox').forEach(cb => {
+            cb.onchange = () => {
+                const checked = document.querySelectorAll('.sheet-checkbox:checked').length;
+                document.getElementById('loadSheetsBtn').disabled = checked === 0;
+
+                // Highlight labels
+                document.querySelectorAll('.sheet-checkbox-label').forEach(label => {
+                    const isChecked = label.querySelector('input').checked;
+                    label.style.borderColor = isChecked ? '#667eea' : '#e0e0e0';
+                    label.style.background = isChecked ? '#f0f2ff' : 'white';
+                });
+            };
+        });
+
+        document.getElementById('loadSheetsBtn').onclick = () => {
+            const selectedIndexes = Array.from(document.querySelectorAll('.sheet-checkbox:checked')).map(cb => parseInt(cb.value));
+
+            if (selectedIndexes.length === 0) return;
+
+            if (selectedIndexes.length === 1) {
+                // Una sola hoja: comportamiento clásico sin prefijo
+                const sheetName = workbook.SheetNames[selectedIndexes[0]];
+                const result = processSheet(workbook, sheetName);
+                state.excelColumns = result.columns;
+                state.excelData = result.data;
+            } else {
+                // Múltiples hojas: mergear con prefijo
+                const merged = mergeSheets(workbook, selectedIndexes);
+                state.excelColumns = merged.columns;
+                state.excelData = merged.data;
+            }
+
             document.getElementById('sheetSelectorDiv').remove();
             document.getElementById('headerOption').style.display = 'block';
-            document.getElementById('headerOption').scrollIntoView({ 
-                behavior: 'smooth', 
-                block: 'center' 
+            document.getElementById('headerOption').scrollIntoView({
+                behavior: 'smooth',
+                block: 'center'
             });
         };
+
+        // Mostrar y hacer scroll al selector
+        document.getElementById('sheetSelectorDiv').scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+        });
+    }
+
+    // v4.5.2: Mergear columnas de múltiples hojas
+    function mergeSheets(workbook, sheetIndexes) {
+        const sheetsData = sheetIndexes.map(idx => {
+            const name = workbook.SheetNames[idx];
+            const result = processSheet(workbook, name);
+            return { name, ...result };
+        });
+
+        // Combinar columnas con prefijo "[Hoja] columna"
+        const allColumns = [];
+        sheetsData.forEach(sheet => {
+            sheet.columns.forEach(col => {
+                const prefixed = `[${sheet.name}] ${col}`;
+                allColumns.push(prefixed);
+            });
+        });
+
+        // Determinar máximo de filas
+        const maxRows = Math.max(...sheetsData.map(s => s.data.length));
+
+        // Mergear datos fila por fila
+        const mergedData = [];
+        for (let i = 0; i < maxRows; i++) {
+            const row = {};
+            sheetsData.forEach(sheet => {
+                const sourceRow = sheet.data[i] || {};
+                sheet.columns.forEach(col => {
+                    const prefixed = `[${sheet.name}] ${col}`;
+                    row[prefixed] = sourceRow[col] || '';
+                });
+            });
+            mergedData.push(row);
+        }
+
+        return { columns: allColumns, data: mergedData };
     }
 
     function processSheet(workbook, sheetName) {
