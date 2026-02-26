@@ -1257,7 +1257,8 @@
             prefix: '➡️ Prefijo',
             suffix: '⬅️ Sufijo',
             replace: '🔄 Reemplazar',
-            removeSpecial: '🚫 Quitar especiales'
+            removeSpecial: '🚫 Quitar especiales',
+            removeTildes: '🔤 Quitar tildes'
         };
 
         contentDiv.innerHTML = transforms.map((t, idx) => {
@@ -1382,6 +1383,13 @@
                 enableTransformApply();
                 showTransformPreview(type);
                 break;
+
+            case 'removeTildes':
+                configTitle.textContent = '🔤 Quitar tildes';
+                configContent.innerHTML = '<p style="color:#666;">Se reemplazarán todas las vocales acentuadas por sus equivalentes sin tilde (á→a, é→e, í→i, ó→o, ú→u, ñ se mantiene).</p>';
+                enableTransformApply();
+                showTransformPreview(type);
+                break;
         }
     }
 
@@ -1446,6 +1454,8 @@
                 return v.split(transform.find).join(transform.replaceWith);
             case 'removeSpecial':
                 return v.replace(/[^a-zA-Z0-9\sáéíóúÁÉÍÓÚñÑüÜ]/g, '');
+            case 'removeTildes':
+                return v.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
             default:
                 return v;
         }
@@ -1559,25 +1569,29 @@
         document.getElementById('previewSection').style.display = 'block';
         
         const previewHTML = `
-            <div style="overflow-x: auto;">
-                <table class="preview-table">
-                    <thead>
+            <p style="margin-bottom: 10px; color: #333; font-weight: 600;">
+                Total: ${csvData.length} filas
+            </p>
+            <div style="overflow-x: auto; max-height: 500px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 8px;">
+                <table class="preview-table" style="margin:0;">
+                    <thead style="position: sticky; top: 0; z-index: 1;">
                         <tr>
-                            ${template.columns.map(col => `<th>${sanitizeHTML(col)}</th>`).join('')}
+                            <th style="background:#667eea;color:white;padding:8px;text-align:center;min-width:40px;">#</th>
+                            ${template.columns.map(col => `<th style="background:#667eea;color:white;padding:8px;">${sanitizeHTML(col)}</th>`).join('')}
                         </tr>
                     </thead>
                     <tbody>
-                        ${csvData.slice(0, 10).map(row => `
-                            <tr>
-                                ${template.columns.map(col => `<td>${sanitizeHTML(row[col])}</td>`).join('')}
+                        ${csvData.map((row, idx) => `
+                            <tr style="background:${idx % 2 === 0 ? '#f8f9ff' : 'white'};">
+                                <td style="padding:6px 8px;text-align:center;color:#999;font-size:0.85em;border-right:1px solid #e0e0e0;">${idx + 1}</td>
+                                ${template.columns.map(col => `<td style="padding:6px 8px;">${sanitizeHTML(row[col])}</td>`).join('')}
                             </tr>
                         `).join('')}
                     </tbody>
                 </table>
             </div>
-            ${csvData.length > 10 ? `<p style="margin-top: 10px; color: #666;">Mostrando 10 de ${csvData.length} filas</p>` : ''}
         `;
-        
+
         document.getElementById('previewTable').innerHTML = previewHTML;
         
         // Guardar para descarga
