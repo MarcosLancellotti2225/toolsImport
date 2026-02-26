@@ -520,11 +520,9 @@
             }
 
             document.getElementById('sheetSelectorDiv').remove();
-            document.getElementById('headerOption').style.display = 'block';
-            document.getElementById('headerOption').scrollIntoView({
-                behavior: 'smooth',
-                block: 'center'
-            });
+
+            // Multi-hoja: ir directo al mapeo (headers ya procesados)
+            setupMapping();
         };
 
         // Mostrar y hacer scroll al selector
