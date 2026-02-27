@@ -1,5 +1,5 @@
 // ============================================
-// CSV Generator v5.1.0
+// CSV Generator v5.1.2
 // Multi-format + Range config + Transformations
 // + Audit Report (KeyController XML → XLSX)
 // + Audit Personalizado: custom columns + multi-format + XLSX output
@@ -2480,33 +2480,139 @@
         });
     }
 
-    function downloadAuditXLSX() {
+    async function downloadAuditXLSX() {
         const data = state.auditProcessedData;
         if (!data || data.length === 0) {
             alert('⚠️ No hay datos para descargar');
             return;
         }
 
-        // Build AOA (array of arrays)
-        const aoa = [AUDIT_COLUMNS]; // header row
-        data.forEach(row => {
-            aoa.push(AUDIT_COLUMNS.map(col => row[col] || ''));
+        const rowCount = data.length;
+        showExportProgress('Exportando XLSX (Reporte NTG)');
+        updateExportProgress(5, 'Preparando ' + rowCount.toLocaleString() + ' filas...');
+
+        const timeout = setTimeout(() => {
+            exportCancelled = true;
+            hideExportProgress();
+            alert('La exportacion tardo demasiado y fue cancelada. Intenta con menos datos.');
+        }, EXPORT_TIMEOUT_MS);
+
+        try {
+            const aoa = [AUDIT_COLUMNS];
+
+            const rows = await processInChunks(data, 5000,
+                (row) => AUDIT_COLUMNS.map(col => row[col] || ''),
+                (pct, done, total) => {
+                    updateExportProgress(10 + pct * 0.5, 'Procesando fila ' + done.toLocaleString() + ' / ' + total.toLocaleString());
+                }
+            );
+
+            if (exportCancelled) return;
+            rows.forEach(r => aoa.push(r));
+
+            updateExportProgress(65, 'Generando archivo XLSX...');
+            await new Promise(r => setTimeout(r, 0));
+
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(aoa);
+            ws['!cols'] = AUDIT_COL_WIDTHS.map(w => ({ wch: w }));
+            XLSX.utils.book_append_sheet(wb, ws, 'Resultado consulta');
+
+            updateExportProgress(90, 'Descargando...');
+            await new Promise(r => setTimeout(r, 0));
+
+            const customName = document.getElementById('auditXlsxNameInput').value.trim();
+            const fileName = customName
+                ? customName + '.xlsx'
+                : state.auditXmlFileName + '_converted.xlsx';
+            XLSX.writeFile(wb, fileName);
+
+            updateExportProgress(100, 'Listo!');
+            setTimeout(() => hideExportProgress(), 800);
+
+        } catch (err) {
+            if (err.message !== 'Cancelado por el usuario') {
+                alert('Error al exportar: ' + err.message);
+            }
+            hideExportProgress();
+        } finally {
+            clearTimeout(timeout);
+        }
+    }
+
+    // ============================================
+    // EXPORT PROGRESS v5.1.2
+    // ============================================
+    const EXPORT_TIMEOUT_MS = 120000; // 2 minutes max
+    let exportCancelled = false;
+    let exportTimerInterval = null;
+
+    function showExportProgress(title) {
+        exportCancelled = false;
+        const overlay = document.getElementById('exportOverlay');
+        overlay.style.display = 'flex';
+        document.getElementById('exportTitle').textContent = title || 'Exportando...';
+        document.getElementById('exportStatus').textContent = 'Preparando datos...';
+        document.getElementById('exportProgressBar').style.width = '0%';
+        document.getElementById('exportTimer').textContent = '0s';
+
+        // Start timer display
+        const startTime = Date.now();
+        exportTimerInterval = setInterval(() => {
+            const elapsed = Math.round((Date.now() - startTime) / 1000);
+            document.getElementById('exportTimer').textContent = elapsed + 's';
+        }, 1000);
+    }
+
+    function updateExportProgress(pct, statusText) {
+        document.getElementById('exportProgressBar').style.width = Math.min(pct, 100) + '%';
+        if (statusText) {
+            document.getElementById('exportStatus').textContent = statusText;
+        }
+    }
+
+    function hideExportProgress() {
+        document.getElementById('exportOverlay').style.display = 'none';
+        if (exportTimerInterval) {
+            clearInterval(exportTimerInterval);
+            exportTimerInterval = null;
+        }
+    }
+
+    function cancelExport() {
+        exportCancelled = true;
+        hideExportProgress();
+    }
+    window.cancelExport = cancelExport;
+
+    // Chunked async processing: splits work into batches so UI doesn't freeze
+    function processInChunks(data, chunkSize, processFn, progressFn) {
+        return new Promise((resolve, reject) => {
+            const results = [];
+            let idx = 0;
+            const total = data.length;
+
+            function next() {
+                if (exportCancelled) {
+                    reject(new Error('Cancelado por el usuario'));
+                    return;
+                }
+                const end = Math.min(idx + chunkSize, total);
+                for (let i = idx; i < end; i++) {
+                    results.push(processFn(data[i], i));
+                }
+                idx = end;
+                const pct = Math.round((idx / total) * 100);
+                if (progressFn) progressFn(pct, idx, total);
+
+                if (idx < total) {
+                    setTimeout(next, 0);
+                } else {
+                    resolve(results);
+                }
+            }
+            next();
         });
-
-        const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.aoa_to_sheet(aoa);
-
-        // Set column widths
-        ws['!cols'] = AUDIT_COL_WIDTHS.map(w => ({ wch: w }));
-
-        XLSX.utils.book_append_sheet(wb, ws, 'Resultado consulta');
-
-        const customName = document.getElementById('auditXlsxNameInput').value.trim();
-        const fileName = customName
-            ? customName + '.xlsx'
-            : state.auditXmlFileName + '_converted.xlsx';
-
-        XLSX.writeFile(wb, fileName);
     }
 
     // ============================================
@@ -2524,57 +2630,130 @@
 
             // v5.1.0: XLSX download for audit personalizado
             if (state.selectedProduct === 'audit') {
-                downloadCustomAuditXLSX(template, includeHeaders);
+                downloadCustomAuditXLSXAsync(template, includeHeaders);
                 return;
             }
 
-            // Standard CSV download
-            const dataRows = window.generatedCSVData.map(row =>
-                template.columns.map(col => {
-                    const val = String(row[col] || '').replace(/"/g, '""');
-                    return `"${val}"`;
-                }).join(',')
+            // Standard CSV download with progress
+            downloadCSVAsync(template, includeHeaders);
+        };
+    }
+
+    async function downloadCSVAsync(template, includeHeaders) {
+        const data = window.generatedCSVData;
+        const rowCount = data.length;
+        showExportProgress('Exportando CSV');
+        updateExportProgress(5, 'Generando ' + rowCount.toLocaleString() + ' filas...');
+
+        const timeout = setTimeout(() => {
+            exportCancelled = true;
+            hideExportProgress();
+            alert('La exportacion tardo demasiado y fue cancelada. Intenta con menos datos.');
+        }, EXPORT_TIMEOUT_MS);
+
+        try {
+            const dataRows = await processInChunks(data, 5000,
+                (row) => {
+                    return template.columns.map(col => {
+                        const val = String(row[col] || '').replace(/"/g, '""');
+                        return '"' + val + '"';
+                    }).join(',');
+                },
+                (pct, done, total) => {
+                    updateExportProgress(10 + pct * 0.7, 'Procesando fila ' + done.toLocaleString() + ' / ' + total.toLocaleString());
+                }
             );
+
+            if (exportCancelled) return;
+
+            updateExportProgress(85, 'Construyendo archivo...');
+            await new Promise(r => setTimeout(r, 0));
+
             const csvContent = includeHeaders
                 ? [template.columns.join(','), ...dataRows].join('\n')
                 : dataRows.join('\n');
+
+            updateExportProgress(95, 'Descargando...');
+            await new Promise(r => setTimeout(r, 0));
 
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
             const customName = document.getElementById('csvNameInput').value.trim();
             link.download = customName
-                ? `${customName}.csv`
-                : `${state.selectedProduct}_${state.selectedCommand}_${Date.now()}.csv`;
+                ? customName + '.csv'
+                : state.selectedProduct + '_' + state.selectedCommand + '_' + Date.now() + '.csv';
             link.click();
-        };
+
+            updateExportProgress(100, 'Listo!');
+            setTimeout(() => hideExportProgress(), 800);
+
+        } catch (err) {
+            if (err.message !== 'Cancelado por el usuario') {
+                alert('Error al exportar: ' + err.message);
+            }
+            hideExportProgress();
+        } finally {
+            clearTimeout(timeout);
+        }
     }
 
-    function downloadCustomAuditXLSX(template, includeHeaders) {
+    async function downloadCustomAuditXLSXAsync(template, includeHeaders) {
         const data = window.generatedCSVData;
+        const rowCount = data.length;
+        showExportProgress('Exportando XLSX');
+        updateExportProgress(5, 'Preparando ' + rowCount.toLocaleString() + ' filas...');
 
-        const aoa = [];
-        if (includeHeaders) {
-            aoa.push(template.columns);
+        const timeout = setTimeout(() => {
+            exportCancelled = true;
+            hideExportProgress();
+            alert('La exportacion tardo demasiado y fue cancelada. Intenta con menos datos.');
+        }, EXPORT_TIMEOUT_MS);
+
+        try {
+            const aoa = [];
+            if (includeHeaders) {
+                aoa.push(template.columns);
+            }
+
+            const rows = await processInChunks(data, 5000,
+                (row) => template.columns.map(col => row[col] || ''),
+                (pct, done, total) => {
+                    updateExportProgress(10 + pct * 0.5, 'Procesando fila ' + done.toLocaleString() + ' / ' + total.toLocaleString());
+                }
+            );
+
+            if (exportCancelled) return;
+            rows.forEach(r => aoa.push(r));
+
+            updateExportProgress(65, 'Generando archivo XLSX...');
+            await new Promise(r => setTimeout(r, 0));
+
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(aoa);
+            ws['!cols'] = template.columns.map(col => ({ wch: Math.max(String(col).length + 5, 15) }));
+            XLSX.utils.book_append_sheet(wb, ws, 'Resultado consulta');
+
+            updateExportProgress(90, 'Descargando...');
+            await new Promise(r => setTimeout(r, 0));
+
+            const customName = document.getElementById('csvNameInput').value.trim();
+            const fileName = customName
+                ? customName + '.xlsx'
+                : 'audit_personalizado_' + Date.now() + '.xlsx';
+            XLSX.writeFile(wb, fileName);
+
+            updateExportProgress(100, 'Listo!');
+            setTimeout(() => hideExportProgress(), 800);
+
+        } catch (err) {
+            if (err.message !== 'Cancelado por el usuario') {
+                alert('Error al exportar: ' + err.message);
+            }
+            hideExportProgress();
+        } finally {
+            clearTimeout(timeout);
         }
-        data.forEach(row => {
-            aoa.push(template.columns.map(col => row[col] || ''));
-        });
-
-        const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.aoa_to_sheet(aoa);
-
-        // Auto column widths
-        ws['!cols'] = template.columns.map(col => ({ wch: Math.max(String(col).length + 5, 15) }));
-
-        XLSX.utils.book_append_sheet(wb, ws, 'Resultado consulta');
-
-        const customName = document.getElementById('csvNameInput').value.trim();
-        const fileName = customName
-            ? customName + '.xlsx'
-            : `audit_personalizado_${Date.now()}.xlsx`;
-
-        XLSX.writeFile(wb, fileName);
     }
 
     function setupReset() {
