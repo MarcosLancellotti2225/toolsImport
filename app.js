@@ -1615,15 +1615,16 @@
             }
             
             const template = getTemplate();
-            const csvContent = [
-                template.columns.join(','),
-                ...window.generatedCSVData.map(row =>
-                    template.columns.map(col => {
-                        const val = String(row[col] || '').replace(/"/g, '""');
-                        return `"${val}"`;
-                    }).join(',')
-                )
-            ].join('\n');
+            const includeHeaders = document.getElementById('includeHeadersCheckbox').checked;
+            const dataRows = window.generatedCSVData.map(row =>
+                template.columns.map(col => {
+                    const val = String(row[col] || '').replace(/"/g, '""');
+                    return `"${val}"`;
+                }).join(',')
+            );
+            const csvContent = includeHeaders
+                ? [template.columns.join(','), ...dataRows].join('\n')
+                : dataRows.join('\n');
 
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
