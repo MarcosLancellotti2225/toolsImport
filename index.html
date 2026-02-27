@@ -8,7 +8,7 @@
     <!-- 
     ╔════════════════════════════════════════╗
     ║  CSV Generator for CLI - Signaturit   ║
-    ║  Version: 5.0.0                         ║
+    ║  Version: 5.1.0                         ║
     ║  Last Updated: 2026-02-27              ║
     ║  Products: IvSign + IvNeos + Audit     ║
     ║  Features: Multi-format INTEGRADO    ║
@@ -37,7 +37,7 @@
                 </div>
                 <div class="version-badge">
                     <span class="version-label">Version</span>
-                    <span class="version-number">5.0.0</span>
+                    <span class="version-number">5.1.0</span>
                 </div>
             </div>
         </div>
@@ -82,7 +82,7 @@
                         </div>
                         <h3>Audit Report</h3>
                         <p class="product-subtitle">KeyController</p>
-                        <p class="product-desc">XML a XLSX<br>Conversor de auditoría</p>
+                        <p class="product-desc">XML a XLSX<br>2 modos de conversión</p>
                     </div>
                 </div>
             </div>
@@ -102,8 +102,42 @@
                 </div>
             </div>
 
+            <!-- Column Builder for Personalizado v5.1.0 -->
+            <div class="step" id="columnBuilderSection" style="display: none;">
+                <div class="step-title">
+                    <span class="step-number">2</span>
+                    Define las columnas de salida
+                </div>
+
+                <div class="info-box">
+                    💡 <strong>Modo personalizado:</strong> Define los nombres de las columnas que tendrá tu archivo de salida.
+                    Luego podrás mapear datos de tu archivo fuente a estas columnas, aplicar transformaciones y descargar en XLSX.
+                </div>
+
+                <div style="display: flex; gap: 10px; margin: 20px 0;">
+                    <input type="text" id="customColumnInput" placeholder="Nombre de columna..."
+                        style="flex: 1; padding: 12px; border: 2px solid #667eea; border-radius: 8px; font-size: 1em;">
+                    <button class="btn btn-primary" id="addCustomColumnBtn" style="padding: 12px 24px;">
+                        + Agregar
+                    </button>
+                </div>
+
+                <div id="customColumnsList">
+                    <p style="color: #999; text-align: center; padding: 20px;">No hay columnas definidas</p>
+                </div>
+
+                <div id="customColumnsInfo" style="display: none; margin: 15px 0; padding: 15px; background: #e8f5e9; border-left: 4px solid #4caf50; border-radius: 5px;">
+                    <strong style="color: #2e7d32;">Columnas definidas:</strong>
+                    <span id="customColumnsCount">0</span> columnas
+                </div>
+
+                <button class="btn btn-primary" id="applyCustomColumnsBtn" style="width: 100%; font-size: 1.1em;" disabled>
+                    Continuar con estas columnas
+                </button>
+            </div>
+
             <!-- PASO 2: Crear o Cargar Archivo -->
-            <div class="step">
+            <div class="step" id="fileLoadStep">
                 <div class="step-title">
                     <span class="step-number">2</span>
                     ¿Crear template o convertir archivo existente?
@@ -473,7 +507,7 @@
                     <label style="display: flex; align-items: center; gap: 12px; cursor: pointer; font-weight: 600; font-size: 1.05em;">
                         <input type="checkbox" id="includeHeadersCheckbox" checked
                             style="width: 22px; height: 22px; accent-color: #667eea; cursor: pointer;">
-                        <span>📋 Incluir encabezados (nombres de columnas) en el CSV</span>
+                        <span id="includeHeadersLabel">📋 Incluir encabezados (nombres de columnas) en el CSV</span>
                     </label>
                     <small style="display: block; margin-top: 6px; margin-left: 34px; color: #666;">
                         Desactivá esta opción si la plantilla de destino (ej: Ivneos) no necesita la fila de encabezados.
@@ -481,8 +515,8 @@
                 </div>
 
                 <div style="margin: 30px 0 20px 0;">
-                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #667eea; font-size: 1.1em;">
-                        📝 Nombre del archivo CSV:
+                    <label id="outputFileLabel" style="display: block; margin-bottom: 8px; font-weight: 600; color: #667eea; font-size: 1.1em;">
+                        Nombre del archivo CSV:
                     </label>
                     <input 
                         type="text" 
@@ -490,7 +524,7 @@
                         placeholder="nombre-archivo"
                         style="width: 100%; padding: 15px; border: 2px solid #667eea; border-radius: 8px; font-size: 1.1em; font-family: monospace;">
                     <small style="color: #666; display: block; margin-top: 5px;">
-                        El archivo se descargará como: <strong><span id="csvNamePreview"></span>.csv</strong>
+                        El archivo se descargará como: <strong><span id="csvNamePreview"></span><span id="outputFileExtension">.csv</span></strong>
                     </small>
                 </div>
 
