@@ -36,7 +36,9 @@
         auditProcessedData: [],  // entries after filtering + transformation
         auditXmlFileName: '',    // original XML filename for output naming
         // v5.1.0: Audit Personalizado
-        auditCustomColumns: []   // user-defined columns for personalizado mode
+        auditCustomColumns: [],  // user-defined columns for personalizado mode
+        isCustomMapping: false,  // flag for custom mapping mode
+        customMappingRows: []    // { source, output, included } for custom mapping
     };
 
     // ============================================
@@ -153,24 +155,12 @@
                 alert('⚠️ Primero selecciona un comando');
                 return;
             }
-            // v5.1.0: check custom columns defined
-            const tmpl = getTemplate();
-            if (tmpl.custom && tmpl.columns.length === 0) {
-                alert('⚠️ Primero define las columnas en el constructor');
-                return;
-            }
             createEmptyTemplate();
         };
 
         document.getElementById('loadExcelBtn').onclick = () => {
             if (!state.selectedCommand) {
                 alert('⚠️ Primero selecciona un comando');
-                return;
-            }
-            // v5.1.0: check custom columns defined
-            const tmpl = getTemplate();
-            if (tmpl.custom && tmpl.columns.length === 0) {
-                alert('⚠️ Primero define las columnas en el constructor');
                 return;
             }
             // Show format selector
@@ -301,18 +291,14 @@
         }
 
         if (template.custom) {
-            // Personalizado: show column builder, hide audit sections
+            // Personalizado: go straight to file load (columns are detected from file)
             hideAuditSections();
             document.getElementById('fileLoadStep').style.display = '';
-            document.getElementById('columnBuilderSection').style.display = 'block';
+            document.getElementById('columnBuilderSection').style.display = 'none';
+            document.getElementById('createTemplateBtn').style.display = 'none';
             if (columnsInfo) columnsInfo.style.display = 'none';
 
-            // Restore column list if already defined
-            if (state.auditCustomColumns.length > 0) {
-                renderCustomColumns();
-            }
-
-            document.getElementById('columnBuilderSection').scrollIntoView({
+            document.getElementById('fileLoadStep').scrollIntoView({
                 behavior: 'smooth', block: 'center'
             });
             return;
@@ -322,6 +308,7 @@
         hideAuditSections();
         document.getElementById('columnBuilderSection').style.display = 'none';
         document.getElementById('fileLoadStep').style.display = '';
+        document.getElementById('createTemplateBtn').style.display = '';
 
         if (columnsInfo && requiredColumns) {
             columnsInfo.style.display = 'block';
@@ -415,6 +402,262 @@
 
     // Expose column builder functions to window (for onclick in dynamic HTML)
     window.removeCustomColumn = removeCustomColumn;
+
+    // ============================================
+    // CUSTOM MAPPING v5.1.0 (Audit Personalizado - inverted flow)
+    // File is loaded first, then user edits columns from mapping view
+    // ============================================
+    function setupCustomMapping() {
+        state.isCustomMapping = true;
+
+        // Initialize: all source columns included with same output name
+        state.customMappingRows = state.excelColumns.map(col => ({
+            source: col,
+            output: col,
+            included: true
+        }));
+
+        // Reset transforms and defaults
+        state.transformations = {};
+        state.customDefaults = {};
+        state.mapping = {};
+        // Pre-set mapping so transform modal can access source data
+        state.excelColumns.forEach(col => {
+            state.mapping[col] = col;
+        });
+
+        // Show mapping section
+        const section = document.getElementById('mappingSection');
+        section.style.display = 'block';
+
+        // Update UI for custom mode
+        document.getElementById('mappingStatus').innerHTML = `
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <span style="font-size: 1.5em;">📋</span>
+                <span><strong>${state.excelColumns.length}</strong> columnas detectadas. Desmarca las que no necesites y edita los nombres de salida.</span>
+            </div>
+        `;
+
+        // Show mapping details directly (not behind toggle button)
+        document.getElementById('mappingDetails').style.display = 'block';
+        document.getElementById('manualMappingBtn').style.display = 'none';
+
+        // Render custom table
+        renderCustomMappingTable();
+
+        // Set apply button to custom handler
+        document.getElementById('applyMappingBtn').onclick = () => applyCustomMapping();
+        document.getElementById('applyMappingBtn').textContent = '✅ Aplicar y Generar Preview';
+
+        section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    function renderCustomMappingTable() {
+        // Update table headers for custom mode
+        const thead = document.querySelector('#mappingTable thead tr');
+        thead.innerHTML = `
+            <th style="width: 60px; text-align: center;">Incluir</th>
+            <th>Columna origen</th>
+            <th>Nombre en salida</th>
+            <th>Transformar</th>
+            <th>Valor por defecto</th>
+        `;
+
+        const tbody = document.getElementById('mappingBody');
+        tbody.innerHTML = '';
+
+        state.customMappingRows.forEach((row, idx) => {
+            const tr = document.createElement('tr');
+            if (!row.included) tr.style.opacity = '0.5';
+
+            // Checkbox: include/exclude
+            const tdCheck = document.createElement('td');
+            tdCheck.style.textAlign = 'center';
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.className = 'custom-include-cb';
+            cb.checked = row.included;
+            cb.dataset.idx = idx;
+            cb.style.cssText = 'width:20px;height:20px;accent-color:#667eea;cursor:pointer;';
+            cb.onchange = () => {
+                state.customMappingRows[idx].included = cb.checked;
+                tr.style.opacity = cb.checked ? '1' : '0.5';
+                updateCustomMappingStatus();
+            };
+            tdCheck.appendChild(cb);
+            tr.appendChild(tdCheck);
+
+            // Source column name (read-only)
+            const tdSource = document.createElement('td');
+            tdSource.style.fontWeight = '600';
+            tdSource.style.color = '#667eea';
+            tdSource.textContent = row.source || '(personalizada)';
+            tr.appendChild(tdSource);
+
+            // Editable output name
+            const tdOutput = document.createElement('td');
+            const outputInput = document.createElement('input');
+            outputInput.type = 'text';
+            outputInput.className = 'custom-output-name';
+            outputInput.value = row.output;
+            outputInput.dataset.idx = idx;
+            outputInput.style.cssText = 'width:100%;padding:8px;border:1px solid #e0e0e0;border-radius:5px;font-size:0.9em;';
+            outputInput.oninput = () => {
+                const oldName = state.customMappingRows[idx].output;
+                const newName = outputInput.value.trim();
+                // Transfer transforms if name changed
+                if (oldName !== newName && state.transformations[oldName]) {
+                    state.transformations[newName] = state.transformations[oldName];
+                    delete state.transformations[oldName];
+                }
+                state.customMappingRows[idx].output = newName || row.source;
+            };
+            tdOutput.appendChild(outputInput);
+            tr.appendChild(tdOutput);
+
+            // Transform button
+            const tdTransform = document.createElement('td');
+            const btnTransform = document.createElement('button');
+            btnTransform.textContent = '🔧 Transformar';
+            btnTransform.className = 'btn btn-secondary';
+            btnTransform.style.cssText = 'padding:5px 10px;font-size:0.9em;';
+            btnTransform.onclick = () => {
+                const currentOutput = state.customMappingRows[idx].output;
+                const currentSource = state.customMappingRows[idx].source;
+                // Set up mapping for transform modal to access source data
+                state.mapping[currentOutput] = currentSource;
+                openTransformModal(currentOutput);
+            };
+            tdTransform.appendChild(btnTransform);
+
+            // Show transform badge if transforms exist
+            if (state.transformations[row.output] && state.transformations[row.output].length > 0) {
+                const badge = document.createElement('span');
+                badge.style.cssText = 'display:inline-block;margin-left:8px;background:#28a745;color:white;padding:2px 8px;border-radius:10px;font-size:0.8em;';
+                badge.textContent = state.transformations[row.output].length + ' aplicada(s)';
+                tdTransform.appendChild(badge);
+            }
+            tr.appendChild(tdTransform);
+
+            // Default value
+            const tdDefault = document.createElement('td');
+            const defaultInput = document.createElement('input');
+            defaultInput.type = 'text';
+            defaultInput.className = 'custom-default-val';
+            defaultInput.value = state.customDefaults[row.output] || '';
+            defaultInput.dataset.idx = idx;
+            defaultInput.placeholder = '';
+            defaultInput.style.cssText = 'width:100%;padding:8px;border:1px solid #e0e0e0;border-radius:5px;font-size:0.9em;';
+            tdDefault.appendChild(defaultInput);
+            tr.appendChild(tdDefault);
+
+            tbody.appendChild(tr);
+        });
+
+        // "Add column" row at the bottom
+        const addRow = document.createElement('tr');
+        addRow.style.background = '#f0f7ff';
+        const addCell = document.createElement('td');
+        addCell.colSpan = 5;
+        addCell.style.cssText = 'text-align:center;padding:12px;';
+        const addBtn = document.createElement('button');
+        addBtn.className = 'btn btn-primary';
+        addBtn.style.cssText = 'padding:8px 20px;font-size:0.9em;background:#667eea;';
+        addBtn.textContent = '+ Agregar columna personalizada';
+        addBtn.onclick = () => addCustomOutputRow();
+        addCell.appendChild(addBtn);
+        addRow.appendChild(addCell);
+        tbody.appendChild(addRow);
+
+        updateCustomMappingStatus();
+    }
+
+    function updateCustomMappingStatus() {
+        const included = state.customMappingRows.filter(r => r.included).length;
+        const total = state.customMappingRows.length;
+        const withTransforms = state.customMappingRows.filter(r =>
+            state.transformations[r.output] && state.transformations[r.output].length > 0
+        ).length;
+
+        document.getElementById('mappingStatus').innerHTML = `
+            <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                <span style="font-size: 1.5em;">📋</span>
+                <strong>Columnas:</strong>
+                <span style="color: #28a745;">✅ Incluidas: ${included}/${total}</span>
+                ${withTransforms > 0 ? '<span style="color: #667eea;">🔄 Con transformaciones: ' + withTransforms + '</span>' : ''}
+            </div>
+        `;
+    }
+
+    function addCustomOutputRow() {
+        const name = prompt('Nombre de la nueva columna:');
+        if (!name || !name.trim()) return;
+
+        state.customMappingRows.push({
+            source: '',
+            output: name.trim(),
+            included: true
+        });
+
+        renderCustomMappingTable();
+    }
+
+    function applyCustomMapping() {
+        // Collect included rows from current state
+        const rows = [];
+
+        state.customMappingRows.forEach((row, idx) => {
+            if (!row.included) return;
+
+            // Read current output name from DOM (in case user edited)
+            const outputInput = document.querySelector('.custom-output-name[data-idx="' + idx + '"]');
+            const output = outputInput ? outputInput.value.trim() : row.output;
+            if (!output) return;
+
+            // Read default value from DOM
+            const defaultInput = document.querySelector('.custom-default-val[data-idx="' + idx + '"]');
+            const defaultVal = defaultInput ? defaultInput.value.trim() : '';
+
+            rows.push({
+                source: row.source,
+                output: output,
+                defaultVal: defaultVal
+            });
+        });
+
+        if (rows.length === 0) {
+            alert('Selecciona al menos una columna');
+            return;
+        }
+
+        // Check for duplicate output names
+        const outputNames = rows.map(r => r.output);
+        const uniqueNames = new Set(outputNames);
+        if (uniqueNames.size !== outputNames.length) {
+            alert('Hay nombres de columna duplicados. Revisa los nombres de salida.');
+            return;
+        }
+
+        // Build template columns
+        templates.audit.personalizado.columns = rows.map(r => r.output);
+
+        // Build mapping
+        state.mapping = {};
+        state.customDefaults = {};
+        rows.forEach(r => {
+            if (r.source) {
+                state.mapping[r.output] = r.source;
+            }
+            if (r.defaultVal) {
+                state.customDefaults[r.output] = r.defaultVal;
+            }
+        });
+
+        // Generate preview (will use template.columns + state.mapping + state.transformations)
+        generatePreview();
+    }
+
+    window.addCustomOutputRow = addCustomOutputRow;
 
     // ============================================
     // TEMPLATES
@@ -1013,10 +1256,18 @@
         const template = getTemplate();
         console.log('🔵 template columns:', template.columns);
 
+        // v5.1.0: Custom mapping for audit personalizado
+        if (template.custom) {
+            setupCustomMapping();
+            return;
+        }
+
+        state.isCustomMapping = false;
+
         // Auto-mapeo
         state.mapping = {};
         let autoMappedCount = 0;
-        
+
         template.columns.forEach(reqCol => {
             const match = state.excelColumns.find(excelCol => 
                 excelCol.toLowerCase().includes(reqCol.toLowerCase()) ||
@@ -1033,10 +1284,17 @@
 
         // Mostrar sección de mapeo
         document.getElementById('mappingSection').style.display = 'block';
-        
+
+        // Restore standard mapping UI (in case custom mode changed it)
+        document.getElementById('manualMappingBtn').style.display = '';
+        document.getElementById('mappingDetails').style.display = 'none';
+        document.getElementById('applyMappingBtn').textContent = '✅ Aplicar Mapeo y Continuar';
+        const thead = document.querySelector('#mappingTable thead tr');
+        thead.innerHTML = '<th>Columna Requerida (CSV)</th><th>Columna de tu Excel</th><th>Transformar</th><th>Valor por defecto (opcional)</th>';
+
         // Actualizar UI
         renderMappingTable();
-        
+
         // Setup manual mapping toggle button
         document.getElementById('manualMappingBtn').onclick = () => {
             const details = document.getElementById('mappingDetails');
@@ -1061,6 +1319,11 @@
     }
 
     function renderMappingTable() {
+        // v5.1.0: redirect to custom rendering if in custom mapping mode
+        if (state.isCustomMapping) {
+            renderCustomMappingTable();
+            return;
+        }
         const template = getTemplate();
         const tbody = document.querySelector('#mappingTable tbody');
         tbody.innerHTML = '';
