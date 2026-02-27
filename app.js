@@ -1,7 +1,8 @@
 // ============================================
-// CSV Generator v5.0.0
+// CSV Generator v5.1.0
 // Multi-format + Range config + Transformations
 // + Audit Report (KeyController XML → XLSX)
+// + Audit Personalizado: custom columns + multi-format + XLSX output
 // ============================================
 
 (function() {
@@ -33,11 +34,13 @@
         // v5.0.0: Audit Report state
         auditRawEntries: [],     // all parsed entries from XML
         auditProcessedData: [],  // entries after filtering + transformation
-        auditXmlFileName: ''     // original XML filename for output naming
+        auditXmlFileName: '',    // original XML filename for output naming
+        // v5.1.0: Audit Personalizado
+        auditCustomColumns: []   // user-defined columns for personalizado mode
     };
 
     // ============================================
-    // TEMPLATES (IvSign + IvNeos)
+    // TEMPLATES (IvSign + IvNeos + Audit)
     // ============================================
     const templates = {
         ivsign: {
@@ -99,6 +102,20 @@
                 columns: ['userid', 'email', 'nombre', 'apellidos', 'dni', 'telefono', 'grupo'],
                 defaults: {}
             }
+        },
+        audit: {
+            'reporte-ntg': {
+                columns: ['date', 'date_utc', 'oper', 'userid', 'host', 'app', 'domain', 'certnameorig', 'subjectcn', 'data'],
+                defaults: {},
+                autoXml: true,
+                label: 'Reporte NTG'
+            },
+            'personalizado': {
+                columns: [],
+                defaults: {},
+                custom: true,
+                label: 'Personalizado'
+            }
         }
     };
 
@@ -115,6 +132,7 @@
         setupDownload();
         setupReset();
         setupAuditReport();  // v5.0.0
+        setupColumnBuilder();  // v5.1.0
     }
 
     // ============================================
@@ -135,6 +153,12 @@
                 alert('⚠️ Primero selecciona un comando');
                 return;
             }
+            // v5.1.0: check custom columns defined
+            const tmpl = getTemplate();
+            if (tmpl.custom && tmpl.columns.length === 0) {
+                alert('⚠️ Primero define las columnas en el constructor');
+                return;
+            }
             createEmptyTemplate();
         };
 
@@ -143,11 +167,17 @@
                 alert('⚠️ Primero selecciona un comando');
                 return;
             }
+            // v5.1.0: check custom columns defined
+            const tmpl = getTemplate();
+            if (tmpl.custom && tmpl.columns.length === 0) {
+                alert('⚠️ Primero define las columnas en el constructor');
+                return;
+            }
             // Show format selector
             document.getElementById('formatSelector').style.display = 'block';
-            document.getElementById('formatSelector').scrollIntoView({ 
-                behavior: 'smooth', 
-                block: 'start' 
+            document.getElementById('formatSelector').scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
             });
         };
 
@@ -162,6 +192,7 @@
 
     function selectProduct(product) {
         state.selectedProduct = product;
+        state.selectedCommand = null;
 
         // Update UI
         document.querySelectorAll('.product-card').forEach(card => {
@@ -172,72 +203,52 @@
             selectedCard.classList.add('selected');
         }
 
-        // v5.0.0: Audit Report has its own flow
-        if (product === 'audit') {
-            // Hide CSV flow sections
-            document.getElementById('commandSelection').style.display = 'none';
-            // Hide all step elements that are for CSV flow (steps 2+)
-            const steps = document.querySelectorAll('.content > .step');
-            steps.forEach((step, idx) => {
-                if (idx >= 1 && step.id !== 'auditUploadSection' && step.id !== 'auditFiltersSection' && step.id !== 'auditPreviewSection') {
-                    step.style.display = 'none';
-                }
-            });
-            document.getElementById('previewSection').style.display = 'none';
-            document.getElementById('mappingSection').style.display = 'none';
+        // v5.1.0: Always hide audit sections and column builder when switching products
+        hideAuditSections();
+        document.getElementById('columnBuilderSection').style.display = 'none';
 
-            // Show audit upload
-            document.getElementById('auditUploadSection').style.display = 'block';
-            document.getElementById('auditUploadSection').scrollIntoView({
-                behavior: 'smooth',
-                block: 'center'
-            });
-            return;
-        }
-
-        // Hide audit sections when switching to CSV products
-        document.getElementById('auditUploadSection').style.display = 'none';
-        document.getElementById('auditFiltersSection').style.display = 'none';
-        document.getElementById('auditStatsSection').style.display = 'none';
-        document.getElementById('auditPreviewSection').style.display = 'none';
+        // Reset CSV flow sections visibility
+        document.getElementById('fileLoadStep').style.display = '';
+        document.getElementById('previewSection').style.display = 'none';
+        document.getElementById('mappingSection').style.display = 'none';
+        document.getElementById('formatSelector').style.display = 'none';
+        document.getElementById('uploadArea').style.display = 'none';
+        document.getElementById('headerOption').style.display = 'none';
+        document.getElementById('templateCreated').style.display = 'none';
+        document.getElementById('columnsInfo').style.display = 'none';
+        const rangeDiv = document.getElementById('rangeConfigDiv');
+        if (rangeDiv) rangeDiv.remove();
+        const sheetDiv = document.getElementById('sheetSelectorDiv');
+        if (sheetDiv) sheetDiv.remove();
 
         // Show command selection
         const commandSelection = document.getElementById('commandSelection');
         if (!commandSelection) {
-            console.error('❌ ERROR: commandSelection element not found in HTML');
-            alert('Error: Falta el elemento commandSelection en el HTML. Verifica que hayas actualizado index.html correctamente.');
+            console.error('commandSelection element not found');
             return;
         }
         commandSelection.style.display = 'block';
 
-        // Re-show CSV flow steps
-        const steps = document.querySelectorAll('.content > .step');
-        steps.forEach((step, idx) => {
-            if (idx >= 1 && step.id !== 'auditUploadSection' && step.id !== 'auditFiltersSection' && step.id !== 'auditPreviewSection') {
-                step.style.display = '';
-            }
-        });
-
         // Generate command buttons dynamically
         const commandGrid = document.getElementById('commandGrid');
         if (!commandGrid) {
-            console.error('❌ ERROR: commandGrid element not found in HTML');
-            alert('Error: Falta el elemento commandGrid en el HTML. Verifica que hayas actualizado index.html correctamente.');
+            console.error('commandGrid element not found');
             return;
         }
         commandGrid.innerHTML = '';
 
         const productTemplates = templates[product];
         if (!productTemplates) {
-            console.error('❌ ERROR: No templates found for product:', product);
+            console.error('No templates found for product:', product);
             return;
         }
 
         Object.keys(productTemplates).forEach(cmdKey => {
+            const tmpl = productTemplates[cmdKey];
             const btn = document.createElement('button');
             btn.className = 'command-item';
             btn.dataset.command = cmdKey;
-            btn.textContent = cmdKey;
+            btn.textContent = tmpl.label || cmdKey;
             btn.onclick = () => selectCommand(cmdKey);
             commandGrid.appendChild(btn);
         });
@@ -249,9 +260,17 @@
         });
     }
 
+    // v5.1.0: Helper functions for section visibility
+    function hideAuditSections() {
+        document.getElementById('auditUploadSection').style.display = 'none';
+        document.getElementById('auditFiltersSection').style.display = 'none';
+        document.getElementById('auditStatsSection').style.display = 'none';
+        document.getElementById('auditPreviewSection').style.display = 'none';
+    }
+
     function selectCommand(command) {
         state.selectedCommand = command;
-        
+
         // Update UI
         document.querySelectorAll('.command-item').forEach(item => {
             item.classList.remove('selected');
@@ -261,25 +280,141 @@
             selectedItem.classList.add('selected');
         }
 
-        // Show columns info
         const template = getTemplate();
         const columnsInfo = document.getElementById('columnsInfo');
         const requiredColumns = document.getElementById('requiredColumns');
-        
+
+        // v5.1.0: Audit Report branching
+        if (template.autoXml) {
+            // Reporte NTG: hide CSV flow, show audit XML upload
+            document.getElementById('fileLoadStep').style.display = 'none';
+            document.getElementById('columnBuilderSection').style.display = 'none';
+            document.getElementById('previewSection').style.display = 'none';
+            document.getElementById('mappingSection').style.display = 'none';
+            if (columnsInfo) columnsInfo.style.display = 'none';
+
+            document.getElementById('auditUploadSection').style.display = 'block';
+            document.getElementById('auditUploadSection').scrollIntoView({
+                behavior: 'smooth', block: 'center'
+            });
+            return;
+        }
+
+        if (template.custom) {
+            // Personalizado: show column builder, hide audit sections
+            hideAuditSections();
+            document.getElementById('fileLoadStep').style.display = '';
+            document.getElementById('columnBuilderSection').style.display = 'block';
+            if (columnsInfo) columnsInfo.style.display = 'none';
+
+            // Restore column list if already defined
+            if (state.auditCustomColumns.length > 0) {
+                renderCustomColumns();
+            }
+
+            document.getElementById('columnBuilderSection').scrollIntoView({
+                behavior: 'smooth', block: 'center'
+            });
+            return;
+        }
+
+        // Standard flow for IvSign/IvNeos
+        hideAuditSections();
+        document.getElementById('columnBuilderSection').style.display = 'none';
+        document.getElementById('fileLoadStep').style.display = '';
+
         if (columnsInfo && requiredColumns) {
             columnsInfo.style.display = 'block';
             requiredColumns.textContent = template.columns.join(', ');
         }
-        
-        // Show next step (create/load file)
-        const steps = document.querySelectorAll('.step');
-        if (steps.length >= 3) {
-            steps[2].scrollIntoView({
-                behavior: 'smooth',
-                block: 'center'
-            });
-        }
+
+        // Scroll to file load step
+        document.getElementById('fileLoadStep').scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+        });
     }
+
+    // ============================================
+    // COLUMN BUILDER v5.1.0 (Audit Personalizado)
+    // ============================================
+    function setupColumnBuilder() {
+        document.getElementById('addCustomColumnBtn').onclick = () => addCustomColumn();
+        document.getElementById('customColumnInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') addCustomColumn();
+        });
+        document.getElementById('applyCustomColumnsBtn').onclick = () => applyCustomColumns();
+    }
+
+    function addCustomColumn() {
+        const input = document.getElementById('customColumnInput');
+        const name = input.value.trim();
+
+        if (!name) return;
+        if (state.auditCustomColumns.includes(name)) {
+            alert('Ya existe una columna con ese nombre');
+            return;
+        }
+
+        state.auditCustomColumns.push(name);
+        input.value = '';
+        input.focus();
+        renderCustomColumns();
+    }
+
+    function removeCustomColumn(idx) {
+        state.auditCustomColumns.splice(idx, 1);
+        renderCustomColumns();
+    }
+
+    function renderCustomColumns() {
+        const list = document.getElementById('customColumnsList');
+
+        if (state.auditCustomColumns.length === 0) {
+            list.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">No hay columnas definidas</p>';
+            document.getElementById('customColumnsInfo').style.display = 'none';
+            document.getElementById('applyCustomColumnsBtn').disabled = true;
+            return;
+        }
+
+        list.innerHTML = state.auditCustomColumns.map((col, idx) => `
+            <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: ${idx % 2 === 0 ? '#f8f9ff' : 'white'}; border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: 5px;">
+                <span style="background: #667eea; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.85em; font-weight: bold; flex-shrink: 0;">${idx + 1}</span>
+                <span style="flex: 1; font-weight: 600;">${sanitizeHTML(col)}</span>
+                <button onclick="removeCustomColumn(${idx})" style="background: #dc3545; color: white; border: none; border-radius: 50%; width: 28px; height: 28px; cursor: pointer; font-size: 0.9em; flex-shrink: 0;">&#10006;</button>
+            </div>
+        `).join('');
+
+        document.getElementById('customColumnsInfo').style.display = 'block';
+        document.getElementById('customColumnsCount').textContent = state.auditCustomColumns.length;
+        document.getElementById('applyCustomColumnsBtn').disabled = false;
+    }
+
+    function applyCustomColumns() {
+        if (state.auditCustomColumns.length === 0) {
+            alert('Agrega al menos una columna');
+            return;
+        }
+
+        // Update template with user-defined columns
+        templates.audit.personalizado.columns = [...state.auditCustomColumns];
+
+        // Show columns info
+        const columnsInfo = document.getElementById('columnsInfo');
+        const requiredColumns = document.getElementById('requiredColumns');
+        if (columnsInfo && requiredColumns) {
+            columnsInfo.style.display = 'block';
+            requiredColumns.textContent = state.auditCustomColumns.join(', ');
+        }
+
+        // Scroll to file load step
+        document.getElementById('fileLoadStep').scrollIntoView({
+            behavior: 'smooth', block: 'center'
+        });
+    }
+
+    // Expose column builder functions to window (for onclick in dynamic HTML)
+    window.removeCustomColumn = removeCustomColumn;
 
     // ============================================
     // TEMPLATES
@@ -1639,11 +1774,24 @@
         
         // Guardar para descarga
         window.generatedCSVData = csvData;
-        
+
+        // v5.1.0: Update download labels for audit product (XLSX)
+        if (state.selectedProduct === 'audit') {
+            document.getElementById('downloadBtn').innerHTML = '📥 Procesar y Descargar XLSX';
+            document.getElementById('outputFileLabel').textContent = 'Nombre del archivo XLSX:';
+            document.getElementById('outputFileExtension').textContent = '.xlsx';
+            document.getElementById('includeHeadersLabel').innerHTML = '📋 Incluir encabezados (nombres de columnas) en el XLSX';
+        } else {
+            document.getElementById('downloadBtn').innerHTML = '🚀 Procesar y Descargar CSV';
+            document.getElementById('outputFileLabel').textContent = 'Nombre del archivo CSV:';
+            document.getElementById('outputFileExtension').textContent = '.csv';
+            document.getElementById('includeHeadersLabel').innerHTML = '📋 Incluir encabezados (nombres de columnas) en el CSV';
+        }
+
         // Scroll
-        document.getElementById('previewSection').scrollIntoView({ 
-            behavior: 'smooth', 
-            block: 'center' 
+        document.getElementById('previewSection').scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
         });
     }
 
@@ -2107,9 +2255,17 @@
                 alert('⚠️ Primero genera el preview');
                 return;
             }
-            
+
             const template = getTemplate();
             const includeHeaders = document.getElementById('includeHeadersCheckbox').checked;
+
+            // v5.1.0: XLSX download for audit personalizado
+            if (state.selectedProduct === 'audit') {
+                downloadCustomAuditXLSX(template, includeHeaders);
+                return;
+            }
+
+            // Standard CSV download
             const dataRows = window.generatedCSVData.map(row =>
                 template.columns.map(col => {
                     const val = String(row[col] || '').replace(/"/g, '""');
@@ -2129,6 +2285,33 @@
                 : `${state.selectedProduct}_${state.selectedCommand}_${Date.now()}.csv`;
             link.click();
         };
+    }
+
+    function downloadCustomAuditXLSX(template, includeHeaders) {
+        const data = window.generatedCSVData;
+
+        const aoa = [];
+        if (includeHeaders) {
+            aoa.push(template.columns);
+        }
+        data.forEach(row => {
+            aoa.push(template.columns.map(col => row[col] || ''));
+        });
+
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+        // Auto column widths
+        ws['!cols'] = template.columns.map(col => ({ wch: Math.max(String(col).length + 5, 15) }));
+
+        XLSX.utils.book_append_sheet(wb, ws, 'Resultado consulta');
+
+        const customName = document.getElementById('csvNameInput').value.trim();
+        const fileName = customName
+            ? customName + '.xlsx'
+            : `audit_personalizado_${Date.now()}.xlsx`;
+
+        XLSX.writeFile(wb, fileName);
     }
 
     function setupReset() {
