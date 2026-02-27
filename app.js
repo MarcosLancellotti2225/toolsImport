@@ -1,6 +1,7 @@
 // ============================================
-// CSV Generator v4.5.3
+// CSV Generator v5.0.0
 // Multi-format + Range config + Transformations
+// + Audit Report (KeyController XML → XLSX)
 // ============================================
 
 (function() {
@@ -28,7 +29,11 @@
         mapping: {},
         customDefaults: {},      // v4.5.1: valores por defecto del usuario
         transformations: {},     // v4.5.1: transformaciones aplicadas por columna
-        hasHeaderRow: true
+        hasHeaderRow: true,
+        // v5.0.0: Audit Report state
+        auditRawEntries: [],     // all parsed entries from XML
+        auditProcessedData: [],  // entries after filtering + transformation
+        auditXmlFileName: ''     // original XML filename for output naming
     };
 
     // ============================================
@@ -109,6 +114,7 @@
         setupHeaderOptions();
         setupDownload();
         setupReset();
+        setupAuditReport();  // v5.0.0
     }
 
     // ============================================
@@ -156,7 +162,7 @@
 
     function selectProduct(product) {
         state.selectedProduct = product;
-        
+
         // Update UI
         document.querySelectorAll('.product-card').forEach(card => {
             card.classList.remove('selected');
@@ -166,6 +172,35 @@
             selectedCard.classList.add('selected');
         }
 
+        // v5.0.0: Audit Report has its own flow
+        if (product === 'audit') {
+            // Hide CSV flow sections
+            document.getElementById('commandSelection').style.display = 'none';
+            // Hide all step elements that are for CSV flow (steps 2+)
+            const steps = document.querySelectorAll('.content > .step');
+            steps.forEach((step, idx) => {
+                if (idx >= 1 && step.id !== 'auditUploadSection' && step.id !== 'auditFiltersSection' && step.id !== 'auditPreviewSection') {
+                    step.style.display = 'none';
+                }
+            });
+            document.getElementById('previewSection').style.display = 'none';
+            document.getElementById('mappingSection').style.display = 'none';
+
+            // Show audit upload
+            document.getElementById('auditUploadSection').style.display = 'block';
+            document.getElementById('auditUploadSection').scrollIntoView({
+                behavior: 'smooth',
+                block: 'center'
+            });
+            return;
+        }
+
+        // Hide audit sections when switching to CSV products
+        document.getElementById('auditUploadSection').style.display = 'none';
+        document.getElementById('auditFiltersSection').style.display = 'none';
+        document.getElementById('auditStatsSection').style.display = 'none';
+        document.getElementById('auditPreviewSection').style.display = 'none';
+
         // Show command selection
         const commandSelection = document.getElementById('commandSelection');
         if (!commandSelection) {
@@ -174,7 +209,15 @@
             return;
         }
         commandSelection.style.display = 'block';
-        
+
+        // Re-show CSV flow steps
+        const steps = document.querySelectorAll('.content > .step');
+        steps.forEach((step, idx) => {
+            if (idx >= 1 && step.id !== 'auditUploadSection' && step.id !== 'auditFiltersSection' && step.id !== 'auditPreviewSection') {
+                step.style.display = '';
+            }
+        });
+
         // Generate command buttons dynamically
         const commandGrid = document.getElementById('commandGrid');
         if (!commandGrid) {
@@ -183,13 +226,13 @@
             return;
         }
         commandGrid.innerHTML = '';
-        
+
         const productTemplates = templates[product];
         if (!productTemplates) {
             console.error('❌ ERROR: No templates found for product:', product);
             return;
         }
-        
+
         Object.keys(productTemplates).forEach(cmdKey => {
             const btn = document.createElement('button');
             btn.className = 'command-item';
@@ -198,11 +241,11 @@
             btn.onclick = () => selectCommand(cmdKey);
             commandGrid.appendChild(btn);
         });
-        
+
         // Scroll
-        commandSelection.scrollIntoView({ 
-            behavior: 'smooth', 
-            block: 'center' 
+        commandSelection.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
         });
     }
 
@@ -1605,6 +1648,457 @@
     }
 
     // ============================================
+    // AUDIT REPORT v5.0.0
+    // ============================================
+    const AUDIT_COLUMNS = ['date', 'date_utc', 'oper', 'userid', 'host', 'app', 'domain', 'certnameorig', 'subjectcn', 'data'];
+    const AUDIT_COL_WIDTHS = [26, 26, 12, 12, 18, 20, 30, 60, 40, 80];
+
+    function setupAuditReport() {
+        // Audit file upload
+        const auditUploadArea = document.getElementById('auditUploadArea');
+        const auditFileInput = document.getElementById('auditFileInput');
+
+        auditFileInput.addEventListener('click', (e) => e.stopPropagation());
+
+        auditUploadArea.addEventListener('click', () => {
+            auditFileInput.value = '';
+            auditFileInput.click();
+        });
+
+        auditUploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            auditUploadArea.classList.add('dragover');
+        });
+
+        auditUploadArea.addEventListener('dragleave', () => {
+            auditUploadArea.classList.remove('dragover');
+        });
+
+        auditUploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            auditUploadArea.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file) {
+                if (!file.name.toLowerCase().endsWith('.xml')) {
+                    alert('⚠️ Solo se aceptan archivos .xml');
+                    return;
+                }
+                handleAuditFileUpload(file);
+            }
+        });
+
+        auditFileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) handleAuditFileUpload(file);
+        });
+
+        // Apply filters button
+        document.getElementById('auditApplyFiltersBtn').onclick = () => {
+            applyAuditFilters();
+        };
+
+        // Download XLSX
+        document.getElementById('auditDownloadBtn').onclick = () => {
+            downloadAuditXLSX();
+        };
+
+        // Reset
+        document.getElementById('auditResetBtn').onclick = () => {
+            if (confirm('¿Seguro que quieres reiniciar? Se perderán todos los datos.')) {
+                location.reload();
+            }
+        };
+
+        // XLSX name preview
+        const auditNameInput = document.getElementById('auditXlsxNameInput');
+        auditNameInput.addEventListener('input', () => {
+            document.getElementById('auditXlsxNamePreview').textContent =
+                auditNameInput.value.trim() || state.auditXmlFileName + '_converted';
+        });
+    }
+
+    function handleAuditFileUpload(file) {
+        state.auditXmlFileName = file.name.replace(/\.xml$/i, '');
+        const progressDiv = document.getElementById('auditProgress');
+        const progressBar = document.getElementById('auditProgressBar');
+        const progressText = document.getElementById('auditProgressText');
+
+        progressDiv.style.display = 'block';
+        progressBar.style.width = '10%';
+        progressText.textContent = 'Leyendo archivo... ' + (file.size / (1024 * 1024)).toFixed(1) + ' MB';
+
+        const reader = new FileReader();
+
+        reader.onload = (e) => {
+            progressBar.style.width = '40%';
+            progressText.textContent = 'Parseando entries...';
+
+            // Use setTimeout to let UI update
+            setTimeout(() => {
+                try {
+                    const xmlText = e.target.result;
+                    const entries = parseAuditXML(xmlText, progressBar, progressText);
+                    state.auditRawEntries = entries;
+
+                    progressBar.style.width = '100%';
+                    progressText.textContent = 'Encontrados ' + entries.length + ' entries';
+
+                    // Show filters section
+                    document.getElementById('auditFiltersSection').style.display = 'block';
+                    document.getElementById('auditFiltersSection').scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'center'
+                    });
+
+                    // Set default XLSX name
+                    document.getElementById('auditXlsxNameInput').value = state.auditXmlFileName + '_converted';
+                    document.getElementById('auditXlsxNamePreview').textContent = state.auditXmlFileName + '_converted';
+
+                } catch (err) {
+                    alert('❌ Error al parsear XML: ' + err.message);
+                    console.error(err);
+                    progressDiv.style.display = 'none';
+                }
+            }, 50);
+        };
+
+        reader.onerror = () => {
+            alert('❌ Error al leer el archivo');
+            progressDiv.style.display = 'none';
+        };
+
+        reader.readAsText(file, 'UTF-8');
+    }
+
+    function parseAuditXML(xmlText, progressBar, progressText) {
+        const entryRegex = /<entry>([\s\S]*?)<\/entry>/g;
+        const entries = [];
+        let match;
+        let count = 0;
+
+        // First pass: count approximate entries
+        const approxCount = (xmlText.match(/<entry>/g) || []).length;
+        if (progressText) progressText.textContent = 'Encontrados ~' + approxCount + ' entries. Procesando...';
+
+        while ((match = entryRegex.exec(xmlText)) !== null) {
+            const entryXml = match[1];
+            entries.push(parseAuditEntry(entryXml));
+            count++;
+
+            if (count % 5000 === 0 && progressBar && progressText) {
+                const pct = 40 + Math.round((count / approxCount) * 50);
+                progressBar.style.width = Math.min(pct, 90) + '%';
+                progressText.textContent = 'Procesando ' + count + ' / ' + approxCount + ' entries...';
+            }
+        }
+
+        return entries;
+    }
+
+    function parseAuditEntry(entryXml) {
+        // Extract <data>...</data> block first (critical for disambiguating fields)
+        const dataMatch = entryXml.match(/<data>([\s\S]*?)<\/data>/);
+        const dataContent = dataMatch ? dataMatch[1] : '';
+
+        // For root-level fields, search in the part BEFORE <data>
+        const beforeData = dataMatch ? entryXml.substring(0, dataMatch.index) : entryXml;
+
+        // Helper to extract a tag value from a specific string
+        function getTag(str, tagName) {
+            const m = str.match(new RegExp('<' + tagName + '>([\\s\\S]*?)<\\/' + tagName + '>'));
+            return m ? m[1] : '';
+        }
+
+        // Check for self-closing tags too
+        function getTagOrEmpty(str, tagName) {
+            // First try normal tag
+            const m = str.match(new RegExp('<' + tagName + '>([\\s\\S]*?)<\\/' + tagName + '>'));
+            if (m) return m[1];
+            // Check self-closing
+            const selfClose = str.match(new RegExp('<' + tagName + '\\s*/>'));
+            if (selfClose) return '';
+            return '';
+        }
+
+        // Root-level fields (from beforeData to avoid <data> duplicates)
+        const date = getTag(beforeData, 'date');
+        const oper = getTag(beforeData, 'oper');
+        const userid = getTag(beforeData, 'userid');
+        const host = getTag(beforeData, 'host');
+        const app = getTag(beforeData, 'app');
+        const orgaid = getTag(beforeData, 'orgaid');
+
+        // Info field (always at root level, after <data>)
+        const info = getTag(entryXml, 'info');
+
+        // Data-level fields
+        const dataLocation = getTagOrEmpty(dataContent, 'location');
+        const dataCertname = getTag(dataContent, 'certname');
+        const dataCertnameorig = getTag(dataContent, 'certnameorig');
+        const dataUserid = getTag(dataContent, 'userid');
+
+        return {
+            date,
+            oper,
+            userid,
+            host,
+            app,
+            orgaid,
+            info,
+            dataContent,        // raw inner content of <data>
+            dataLocation,       // location from inside <data>
+            dataCertname,
+            dataCertnameorig,
+            dataUserid
+        };
+    }
+
+    // Timezone: determine CET (+1) or CEST (+2) for a given date
+    function getSpainOffset(dateStr, tzMode) {
+        if (tzMode === 'cet') return 1;
+        if (tzMode === 'cest') return 2;
+
+        // Auto: CEST is from last Sunday of March to last Sunday of October
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return 1; // fallback CET
+
+        const year = d.getFullYear();
+        const month = d.getMonth(); // 0-indexed
+
+        // Last Sunday of March
+        const marchLast = new Date(year, 2, 31);
+        while (marchLast.getDay() !== 0) marchLast.setDate(marchLast.getDate() - 1);
+        marchLast.setHours(2, 0, 0, 0); // transition at 02:00 UTC
+
+        // Last Sunday of October
+        const octLast = new Date(year, 9, 31);
+        while (octLast.getDay() !== 0) octLast.setDate(octLast.getDate() - 1);
+        octLast.setHours(3, 0, 0, 0); // transition at 03:00 CEST = 01:00 UTC
+
+        if (d >= marchLast && d < octLast) return 2; // CEST
+        return 1; // CET
+    }
+
+    function formatAuditDate(dateStr) {
+        // Input: 2026-01-10T23:57:22.9607760
+        // Output: 2026-01-10 23:57:22.960000 (6 digits microseconds, padded)
+        if (!dateStr) return '';
+
+        const tMatch = dateStr.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})\.?(\d*)$/);
+        if (!tMatch) return dateStr;
+
+        const datePart = tMatch[1];
+        const timePart = tMatch[2];
+        let fracPart = tMatch[3] || '0';
+
+        // Take first 6 digits, pad to 6
+        fracPart = fracPart.substring(0, 6).padEnd(6, '0');
+
+        return datePart + ' ' + timePart + '.' + fracPart;
+    }
+
+    function addOffsetToDate(dateStr, offsetHours) {
+        // Parse the date string and add offset hours
+        if (!dateStr) return '';
+
+        const tMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})\.?(\d*)$/);
+        if (!tMatch) return dateStr;
+
+        const year = parseInt(tMatch[1]);
+        const month = parseInt(tMatch[2]) - 1;
+        const day = parseInt(tMatch[3]);
+        const hours = parseInt(tMatch[4]);
+        const minutes = parseInt(tMatch[5]);
+        const seconds = parseInt(tMatch[6]);
+        let fracPart = tMatch[7] || '0';
+
+        // Preserve original fractional part (up to 6 digits)
+        fracPart = fracPart.substring(0, 6).padEnd(6, '0');
+
+        const d = new Date(year, month, day, hours + offsetHours, minutes, seconds);
+
+        const pad = (n, len) => String(n).padStart(len || 2, '0');
+        return pad(d.getFullYear(), 4) + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
+            ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()) +
+            '.' + fracPart;
+    }
+
+    function extractDomain(locationStr) {
+        if (!locationStr || !locationStr.trim()) return '';
+
+        // Decode XML entities
+        let url = locationStr.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+
+        try {
+            // Try to parse as URL
+            if (url.startsWith('http://') || url.startsWith('https://')) {
+                const parsed = new URL(url);
+                return parsed.hostname;
+            }
+        } catch (e) {
+            // Not a valid URL
+        }
+        return '';
+    }
+
+    function extractSubjectCN(infoStr) {
+        if (!infoStr) return '';
+        const m = infoStr.match(/subjectcn='(.*?)'/);
+        return m ? m[1] : '';
+    }
+
+    function buildCertnameorig(entry) {
+        // Concatenate raw XML tags from <data>
+        const parts = [];
+        if (entry.dataCertname) parts.push('<certname>' + entry.dataCertname + '</certname>');
+        if (entry.dataCertnameorig) parts.push('<certnameorig>' + entry.dataCertnameorig + '</certnameorig>');
+        if (entry.dataUserid) parts.push('<userid>' + entry.dataUserid + '</userid>');
+        return parts.join('');
+    }
+
+    function applyAuditFilters() {
+        const dateFrom = document.getElementById('auditDateFrom').value;
+        const dateTo = document.getElementById('auditDateTo').value;
+        const userIdFilter = document.getElementById('auditUserIdFilter').value.trim();
+        const orgaIdFilter = document.getElementById('auditOrgaIdFilter').value.trim().toLowerCase();
+        const tzMode = document.getElementById('auditTimezone').value;
+
+        const totalEntries = state.auditRawEntries.length;
+        let filtered = state.auditRawEntries;
+
+        // Apply date filter
+        if (dateFrom) {
+            const fromStr = dateFrom.replace('T', ' ');
+            filtered = filtered.filter(e => {
+                const entryDate = e.date.replace('T', ' ');
+                return entryDate >= fromStr;
+            });
+        }
+        if (dateTo) {
+            const toStr = dateTo.replace('T', ' ');
+            filtered = filtered.filter(e => {
+                const entryDate = e.date.replace('T', ' ');
+                return entryDate <= toStr;
+            });
+        }
+
+        // Apply userid filter (exact match)
+        if (userIdFilter) {
+            filtered = filtered.filter(e => e.userid === userIdFilter);
+        }
+
+        // Apply orgaid filter (case-insensitive)
+        if (orgaIdFilter) {
+            filtered = filtered.filter(e => e.orgaid.toLowerCase() === orgaIdFilter);
+        }
+
+        // Transform to output rows
+        const processedData = filtered.map(entry => {
+            const offset = getSpainOffset(entry.date, tzMode);
+            return {
+                date: formatAuditDate(entry.date),
+                date_utc: addOffsetToDate(entry.date, offset),
+                oper: entry.oper,
+                userid: entry.userid,
+                host: entry.host,
+                app: entry.app,
+                domain: extractDomain(entry.dataLocation),
+                certnameorig: buildCertnameorig(entry),
+                subjectcn: extractSubjectCN(entry.info),
+                data: entry.dataContent.trim()
+            };
+        });
+
+        state.auditProcessedData = processedData;
+
+        // Stats
+        const uniqueUsers = new Set(filtered.map(e => e.userid)).size;
+        const uniqueOrgas = new Set(filtered.map(e => e.orgaid)).size;
+
+        document.getElementById('statTotalEntries').textContent = totalEntries.toLocaleString();
+        document.getElementById('statFilteredEntries').textContent = processedData.length.toLocaleString();
+        document.getElementById('statUniqueUsers').textContent = uniqueUsers.toLocaleString();
+        document.getElementById('statUniqueOrgas').textContent = uniqueOrgas.toLocaleString();
+
+        document.getElementById('auditStatsSection').style.display = 'block';
+
+        // Generate preview
+        generateAuditPreview(processedData);
+    }
+
+    function generateAuditPreview(data) {
+        const previewData = data.slice(0, 50);
+
+        // Header
+        const thead = document.getElementById('auditPreviewHead');
+        thead.innerHTML = '<tr>' +
+            '<th style="background:#667eea;color:white;padding:8px;text-align:center;min-width:40px;">#</th>' +
+            AUDIT_COLUMNS.map(col =>
+                '<th style="background:#667eea;color:white;padding:8px;white-space:nowrap;">' + sanitizeHTML(col) + '</th>'
+            ).join('') +
+            '</tr>';
+
+        // Body
+        const tbody = document.getElementById('auditPreviewBody');
+        const longCols = ['certnameorig', 'data'];
+
+        tbody.innerHTML = previewData.map((row, idx) => {
+            return '<tr style="background:' + (idx % 2 === 0 ? '#f8f9ff' : 'white') + ';">' +
+                '<td style="padding:6px 8px;text-align:center;color:#999;font-size:0.85em;border-right:1px solid #e0e0e0;">' + (idx + 1) + '</td>' +
+                AUDIT_COLUMNS.map(col => {
+                    const val = row[col] || '';
+                    const isLong = longCols.includes(col);
+                    const style = isLong
+                        ? 'padding:6px 8px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'
+                        : 'padding:6px 8px;white-space:nowrap;';
+                    const title = isLong ? ' title="' + sanitizeHTML(val).replace(/"/g, '&quot;') + '"' : '';
+                    return '<td style="' + style + '"' + title + '>' + sanitizeHTML(val) + '</td>';
+                }).join('') +
+                '</tr>';
+        }).join('');
+
+        // Row count
+        document.getElementById('auditRowCount').textContent = data.length + ' filas procesadas' +
+            (data.length > 50 ? ' (mostrando primeras 50)' : '');
+
+        // Show preview section
+        document.getElementById('auditPreviewSection').style.display = 'block';
+        document.getElementById('auditPreviewSection').scrollIntoView({
+            behavior: 'smooth',
+            block: 'start'
+        });
+    }
+
+    function downloadAuditXLSX() {
+        const data = state.auditProcessedData;
+        if (!data || data.length === 0) {
+            alert('⚠️ No hay datos para descargar');
+            return;
+        }
+
+        // Build AOA (array of arrays)
+        const aoa = [AUDIT_COLUMNS]; // header row
+        data.forEach(row => {
+            aoa.push(AUDIT_COLUMNS.map(col => row[col] || ''));
+        });
+
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+        // Set column widths
+        ws['!cols'] = AUDIT_COL_WIDTHS.map(w => ({ wch: w }));
+
+        XLSX.utils.book_append_sheet(wb, ws, 'Resultado consulta');
+
+        const customName = document.getElementById('auditXlsxNameInput').value.trim();
+        const fileName = customName
+            ? customName + '.xlsx'
+            : state.auditXmlFileName + '_converted.xlsx';
+
+        XLSX.writeFile(wb, fileName);
+    }
+
+    // ============================================
     // DESCARGA Y RESET
     // ============================================
     function setupDownload() {
@@ -1615,15 +2109,16 @@
             }
             
             const template = getTemplate();
-            const csvContent = [
-                template.columns.join(','),
-                ...window.generatedCSVData.map(row =>
-                    template.columns.map(col => {
-                        const val = String(row[col] || '').replace(/"/g, '""');
-                        return `"${val}"`;
-                    }).join(',')
-                )
-            ].join('\n');
+            const includeHeaders = document.getElementById('includeHeadersCheckbox').checked;
+            const dataRows = window.generatedCSVData.map(row =>
+                template.columns.map(col => {
+                    const val = String(row[col] || '').replace(/"/g, '""');
+                    return `"${val}"`;
+                }).join(',')
+            );
+            const csvContent = includeHeaders
+                ? [template.columns.join(','), ...dataRows].join('\n')
+                : dataRows.join('\n');
 
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
