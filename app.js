@@ -101,8 +101,11 @@
                 defaults: {}
             },
             'usuarios': {
-                columns: ['userid', 'email', 'nombre', 'apellidos', 'dni', 'telefono', 'grupo'],
-                defaults: {}
+                columns: ['userid', 'email', 'nombre', 'apellidos', 'dni', 'telefono', 'grupo', 'rol'],
+                defaults: {},
+                options: {
+                    rol: ['superadministrador', 'descargador', 'lector', 'editor', 'sincronizador', 'administrador']
+                }
             }
         },
         audit: {
@@ -664,22 +667,57 @@
     // ============================================
     function createEmptyTemplate() {
         const template = getTemplate();
+        // Create template with 100 empty rows (so data validation applies)
+        const rows = [template.columns];
+        for (let i = 0; i < 100; i++) {
+            rows.push(template.columns.map(() => ''));
+        }
         const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.aoa_to_sheet([template.columns]);
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        addDataValidation(ws, template);
         XLSX.utils.book_append_sheet(wb, ws, 'Template');
         XLSX.writeFile(wb, `template_${state.selectedCommand}.xlsx`);
     }
 
     function downloadTemplate() {
         const template = getTemplate();
-        const sampleData = [
-            template.columns,
-            template.columns.map(col => template.defaults[col] || `ejemplo_${col}`)
-        ];
+        const sampleRow = template.columns.map(col => template.defaults[col] || `ejemplo_${col}`);
+        const rows = [template.columns, sampleRow];
+        for (let i = 0; i < 99; i++) {
+            rows.push(template.columns.map(() => ''));
+        }
         const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.aoa_to_sheet(sampleData);
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        addDataValidation(ws, template);
         XLSX.utils.book_append_sheet(wb, ws, 'Template');
         XLSX.writeFile(wb, `template_${state.selectedCommand}_con_ejemplo.xlsx`);
+    }
+
+    // Add Excel data validation (dropdowns) for columns with predefined options
+    function addDataValidation(ws, template) {
+        if (!template.options) return;
+
+        Object.keys(template.options).forEach(colName => {
+            const colIdx = template.columns.indexOf(colName);
+            if (colIdx === -1) return;
+
+            const options = template.options[colName];
+            // Convert column index to Excel letter (A, B, C, ..., Z, AA, AB, ...)
+            let colLetter = '';
+            let n = colIdx;
+            while (n >= 0) {
+                colLetter = String.fromCharCode(65 + (n % 26)) + colLetter;
+                n = Math.floor(n / 26) - 1;
+            }
+
+            // Apply data validation to rows 2-101 (row 1 is header)
+            if (!ws['!dataValidation']) ws['!dataValidation'] = [];
+            ws['!dataValidation'].push({
+                sqref: colLetter + '2:' + colLetter + '101',
+                type: 'list',
+                formula1: '"' + options.join(',') + '"'
+            });
+        });
     }
 
     function getTemplate() {
@@ -1381,21 +1419,54 @@
 
             tr.appendChild(tdAction);
 
-            // Valor por defecto (editable)
+            // Valor por defecto (editable - dropdown if template has options)
             const tdDefault = document.createElement('td');
-            const defaultInput = document.createElement('input');
-            defaultInput.type = 'text';
-            defaultInput.className = 'default-value-input';
-            defaultInput.dataset.column = reqCol;
-            defaultInput.placeholder = '';
-            defaultInput.value = state.customDefaults[reqCol] || '';
-            defaultInput.style.cssText = 'width:100%;padding:8px;border:1px solid #e0e0e0;border-radius:5px;font-size:0.9em;';
+            const colOptions = template.options && template.options[reqCol];
 
-            defaultInput.oninput = function() {
-                state.customDefaults[reqCol] = this.value;
-            };
+            if (colOptions && colOptions.length > 0) {
+                // Dropdown with predefined options
+                const selectDefault = document.createElement('select');
+                selectDefault.className = 'default-value-input';
+                selectDefault.dataset.column = reqCol;
+                selectDefault.style.cssText = 'width:100%;padding:8px;border:1px solid #e0e0e0;border-radius:5px;font-size:0.9em;background:white;';
 
-            tdDefault.appendChild(defaultInput);
+                const emptyOpt = document.createElement('option');
+                emptyOpt.value = '';
+                emptyOpt.textContent = '-- Sin valor por defecto --';
+                selectDefault.appendChild(emptyOpt);
+
+                colOptions.forEach(optVal => {
+                    const opt = document.createElement('option');
+                    opt.value = optVal;
+                    opt.textContent = optVal;
+                    if (state.customDefaults[reqCol] === optVal) {
+                        opt.selected = true;
+                    }
+                    selectDefault.appendChild(opt);
+                });
+
+                selectDefault.onchange = function() {
+                    state.customDefaults[reqCol] = this.value;
+                };
+
+                tdDefault.appendChild(selectDefault);
+            } else {
+                // Free text input
+                const defaultInput = document.createElement('input');
+                defaultInput.type = 'text';
+                defaultInput.className = 'default-value-input';
+                defaultInput.dataset.column = reqCol;
+                defaultInput.placeholder = '';
+                defaultInput.value = state.customDefaults[reqCol] || '';
+                defaultInput.style.cssText = 'width:100%;padding:8px;border:1px solid #e0e0e0;border-radius:5px;font-size:0.9em;';
+
+                defaultInput.oninput = function() {
+                    state.customDefaults[reqCol] = this.value;
+                };
+
+                tdDefault.appendChild(defaultInput);
+            }
+
             tr.appendChild(tdDefault);
 
             tbody.appendChild(tr);
