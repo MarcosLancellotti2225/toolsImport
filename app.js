@@ -1,5 +1,5 @@
 // ============================================
-// CSV Generator v5.1.0
+// CSV Generator v5.1.2
 // Multi-format + Range config + Transformations
 // + Audit Report (KeyController XML → XLSX)
 // + Audit Personalizado: custom columns + multi-format + XLSX output
@@ -101,8 +101,11 @@
                 defaults: {}
             },
             'usuarios': {
-                columns: ['userid', 'email', 'nombre', 'apellidos', 'dni', 'telefono', 'grupo'],
-                defaults: {}
+                columns: ['userid', 'email', 'nombre', 'apellidos', 'dni', 'telefono', 'grupo', 'rol'],
+                defaults: {},
+                options: {
+                    rol: ['superadministrador', 'descargador', 'lector', 'editor', 'sincronizador', 'administrador']
+                }
             }
         },
         audit: {
@@ -664,22 +667,57 @@
     // ============================================
     function createEmptyTemplate() {
         const template = getTemplate();
+        // Create template with 100 empty rows (so data validation applies)
+        const rows = [template.columns];
+        for (let i = 0; i < 100; i++) {
+            rows.push(template.columns.map(() => ''));
+        }
         const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.aoa_to_sheet([template.columns]);
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        addDataValidation(ws, template);
         XLSX.utils.book_append_sheet(wb, ws, 'Template');
         XLSX.writeFile(wb, `template_${state.selectedCommand}.xlsx`);
     }
 
     function downloadTemplate() {
         const template = getTemplate();
-        const sampleData = [
-            template.columns,
-            template.columns.map(col => template.defaults[col] || `ejemplo_${col}`)
-        ];
+        const sampleRow = template.columns.map(col => template.defaults[col] || `ejemplo_${col}`);
+        const rows = [template.columns, sampleRow];
+        for (let i = 0; i < 99; i++) {
+            rows.push(template.columns.map(() => ''));
+        }
         const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.aoa_to_sheet(sampleData);
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        addDataValidation(ws, template);
         XLSX.utils.book_append_sheet(wb, ws, 'Template');
         XLSX.writeFile(wb, `template_${state.selectedCommand}_con_ejemplo.xlsx`);
+    }
+
+    // Add Excel data validation (dropdowns) for columns with predefined options
+    function addDataValidation(ws, template) {
+        if (!template.options) return;
+
+        Object.keys(template.options).forEach(colName => {
+            const colIdx = template.columns.indexOf(colName);
+            if (colIdx === -1) return;
+
+            const options = template.options[colName];
+            // Convert column index to Excel letter (A, B, C, ..., Z, AA, AB, ...)
+            let colLetter = '';
+            let n = colIdx;
+            while (n >= 0) {
+                colLetter = String.fromCharCode(65 + (n % 26)) + colLetter;
+                n = Math.floor(n / 26) - 1;
+            }
+
+            // Apply data validation to rows 2-101 (row 1 is header)
+            if (!ws['!dataValidation']) ws['!dataValidation'] = [];
+            ws['!dataValidation'].push({
+                sqref: colLetter + '2:' + colLetter + '101',
+                type: 'list',
+                formula1: '"' + options.join(',') + '"'
+            });
+        });
     }
 
     function getTemplate() {
@@ -1381,21 +1419,54 @@
 
             tr.appendChild(tdAction);
 
-            // Valor por defecto (editable)
+            // Valor por defecto (editable - dropdown if template has options)
             const tdDefault = document.createElement('td');
-            const defaultInput = document.createElement('input');
-            defaultInput.type = 'text';
-            defaultInput.className = 'default-value-input';
-            defaultInput.dataset.column = reqCol;
-            defaultInput.placeholder = '';
-            defaultInput.value = state.customDefaults[reqCol] || '';
-            defaultInput.style.cssText = 'width:100%;padding:8px;border:1px solid #e0e0e0;border-radius:5px;font-size:0.9em;';
+            const colOptions = template.options && template.options[reqCol];
 
-            defaultInput.oninput = function() {
-                state.customDefaults[reqCol] = this.value;
-            };
+            if (colOptions && colOptions.length > 0) {
+                // Dropdown with predefined options
+                const selectDefault = document.createElement('select');
+                selectDefault.className = 'default-value-input';
+                selectDefault.dataset.column = reqCol;
+                selectDefault.style.cssText = 'width:100%;padding:8px;border:1px solid #e0e0e0;border-radius:5px;font-size:0.9em;background:white;';
 
-            tdDefault.appendChild(defaultInput);
+                const emptyOpt = document.createElement('option');
+                emptyOpt.value = '';
+                emptyOpt.textContent = '-- Sin valor por defecto --';
+                selectDefault.appendChild(emptyOpt);
+
+                colOptions.forEach(optVal => {
+                    const opt = document.createElement('option');
+                    opt.value = optVal;
+                    opt.textContent = optVal;
+                    if (state.customDefaults[reqCol] === optVal) {
+                        opt.selected = true;
+                    }
+                    selectDefault.appendChild(opt);
+                });
+
+                selectDefault.onchange = function() {
+                    state.customDefaults[reqCol] = this.value;
+                };
+
+                tdDefault.appendChild(selectDefault);
+            } else {
+                // Free text input
+                const defaultInput = document.createElement('input');
+                defaultInput.type = 'text';
+                defaultInput.className = 'default-value-input';
+                defaultInput.dataset.column = reqCol;
+                defaultInput.placeholder = '';
+                defaultInput.value = state.customDefaults[reqCol] || '';
+                defaultInput.style.cssText = 'width:100%;padding:8px;border:1px solid #e0e0e0;border-radius:5px;font-size:0.9em;';
+
+                defaultInput.oninput = function() {
+                    state.customDefaults[reqCol] = this.value;
+                };
+
+                tdDefault.appendChild(defaultInput);
+            }
+
             tr.appendChild(tdDefault);
 
             tbody.appendChild(tr);
@@ -2480,33 +2551,139 @@
         });
     }
 
-    function downloadAuditXLSX() {
+    async function downloadAuditXLSX() {
         const data = state.auditProcessedData;
         if (!data || data.length === 0) {
             alert('⚠️ No hay datos para descargar');
             return;
         }
 
-        // Build AOA (array of arrays)
-        const aoa = [AUDIT_COLUMNS]; // header row
-        data.forEach(row => {
-            aoa.push(AUDIT_COLUMNS.map(col => row[col] || ''));
+        const rowCount = data.length;
+        showExportProgress('Exportando XLSX (Reporte NTG)');
+        updateExportProgress(5, 'Preparando ' + rowCount.toLocaleString() + ' filas...');
+
+        const timeout = setTimeout(() => {
+            exportCancelled = true;
+            hideExportProgress();
+            alert('La exportacion tardo demasiado y fue cancelada. Intenta con menos datos.');
+        }, EXPORT_TIMEOUT_MS);
+
+        try {
+            const aoa = [AUDIT_COLUMNS];
+
+            const rows = await processInChunks(data, 5000,
+                (row) => AUDIT_COLUMNS.map(col => row[col] || ''),
+                (pct, done, total) => {
+                    updateExportProgress(10 + pct * 0.5, 'Procesando fila ' + done.toLocaleString() + ' / ' + total.toLocaleString());
+                }
+            );
+
+            if (exportCancelled) return;
+            rows.forEach(r => aoa.push(r));
+
+            updateExportProgress(65, 'Generando archivo XLSX...');
+            await new Promise(r => setTimeout(r, 0));
+
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(aoa);
+            ws['!cols'] = AUDIT_COL_WIDTHS.map(w => ({ wch: w }));
+            XLSX.utils.book_append_sheet(wb, ws, 'Resultado consulta');
+
+            updateExportProgress(90, 'Descargando...');
+            await new Promise(r => setTimeout(r, 0));
+
+            const customName = document.getElementById('auditXlsxNameInput').value.trim();
+            const fileName = customName
+                ? customName + '.xlsx'
+                : state.auditXmlFileName + '_converted.xlsx';
+            XLSX.writeFile(wb, fileName);
+
+            updateExportProgress(100, 'Listo!');
+            setTimeout(() => hideExportProgress(), 800);
+
+        } catch (err) {
+            if (err.message !== 'Cancelado por el usuario') {
+                alert('Error al exportar: ' + err.message);
+            }
+            hideExportProgress();
+        } finally {
+            clearTimeout(timeout);
+        }
+    }
+
+    // ============================================
+    // EXPORT PROGRESS v5.1.2
+    // ============================================
+    const EXPORT_TIMEOUT_MS = 120000; // 2 minutes max
+    let exportCancelled = false;
+    let exportTimerInterval = null;
+
+    function showExportProgress(title) {
+        exportCancelled = false;
+        const overlay = document.getElementById('exportOverlay');
+        overlay.style.display = 'flex';
+        document.getElementById('exportTitle').textContent = title || 'Exportando...';
+        document.getElementById('exportStatus').textContent = 'Preparando datos...';
+        document.getElementById('exportProgressBar').style.width = '0%';
+        document.getElementById('exportTimer').textContent = '0s';
+
+        // Start timer display
+        const startTime = Date.now();
+        exportTimerInterval = setInterval(() => {
+            const elapsed = Math.round((Date.now() - startTime) / 1000);
+            document.getElementById('exportTimer').textContent = elapsed + 's';
+        }, 1000);
+    }
+
+    function updateExportProgress(pct, statusText) {
+        document.getElementById('exportProgressBar').style.width = Math.min(pct, 100) + '%';
+        if (statusText) {
+            document.getElementById('exportStatus').textContent = statusText;
+        }
+    }
+
+    function hideExportProgress() {
+        document.getElementById('exportOverlay').style.display = 'none';
+        if (exportTimerInterval) {
+            clearInterval(exportTimerInterval);
+            exportTimerInterval = null;
+        }
+    }
+
+    function cancelExport() {
+        exportCancelled = true;
+        hideExportProgress();
+    }
+    window.cancelExport = cancelExport;
+
+    // Chunked async processing: splits work into batches so UI doesn't freeze
+    function processInChunks(data, chunkSize, processFn, progressFn) {
+        return new Promise((resolve, reject) => {
+            const results = [];
+            let idx = 0;
+            const total = data.length;
+
+            function next() {
+                if (exportCancelled) {
+                    reject(new Error('Cancelado por el usuario'));
+                    return;
+                }
+                const end = Math.min(idx + chunkSize, total);
+                for (let i = idx; i < end; i++) {
+                    results.push(processFn(data[i], i));
+                }
+                idx = end;
+                const pct = Math.round((idx / total) * 100);
+                if (progressFn) progressFn(pct, idx, total);
+
+                if (idx < total) {
+                    setTimeout(next, 0);
+                } else {
+                    resolve(results);
+                }
+            }
+            next();
         });
-
-        const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.aoa_to_sheet(aoa);
-
-        // Set column widths
-        ws['!cols'] = AUDIT_COL_WIDTHS.map(w => ({ wch: w }));
-
-        XLSX.utils.book_append_sheet(wb, ws, 'Resultado consulta');
-
-        const customName = document.getElementById('auditXlsxNameInput').value.trim();
-        const fileName = customName
-            ? customName + '.xlsx'
-            : state.auditXmlFileName + '_converted.xlsx';
-
-        XLSX.writeFile(wb, fileName);
     }
 
     // ============================================
@@ -2524,57 +2701,130 @@
 
             // v5.1.0: XLSX download for audit personalizado
             if (state.selectedProduct === 'audit') {
-                downloadCustomAuditXLSX(template, includeHeaders);
+                downloadCustomAuditXLSXAsync(template, includeHeaders);
                 return;
             }
 
-            // Standard CSV download
-            const dataRows = window.generatedCSVData.map(row =>
-                template.columns.map(col => {
-                    const val = String(row[col] || '').replace(/"/g, '""');
-                    return `"${val}"`;
-                }).join(',')
+            // Standard CSV download with progress
+            downloadCSVAsync(template, includeHeaders);
+        };
+    }
+
+    async function downloadCSVAsync(template, includeHeaders) {
+        const data = window.generatedCSVData;
+        const rowCount = data.length;
+        showExportProgress('Exportando CSV');
+        updateExportProgress(5, 'Generando ' + rowCount.toLocaleString() + ' filas...');
+
+        const timeout = setTimeout(() => {
+            exportCancelled = true;
+            hideExportProgress();
+            alert('La exportacion tardo demasiado y fue cancelada. Intenta con menos datos.');
+        }, EXPORT_TIMEOUT_MS);
+
+        try {
+            const dataRows = await processInChunks(data, 5000,
+                (row) => {
+                    return template.columns.map(col => {
+                        const val = String(row[col] || '').replace(/"/g, '""');
+                        return '"' + val + '"';
+                    }).join(',');
+                },
+                (pct, done, total) => {
+                    updateExportProgress(10 + pct * 0.7, 'Procesando fila ' + done.toLocaleString() + ' / ' + total.toLocaleString());
+                }
             );
+
+            if (exportCancelled) return;
+
+            updateExportProgress(85, 'Construyendo archivo...');
+            await new Promise(r => setTimeout(r, 0));
+
             const csvContent = includeHeaders
                 ? [template.columns.join(','), ...dataRows].join('\n')
                 : dataRows.join('\n');
+
+            updateExportProgress(95, 'Descargando...');
+            await new Promise(r => setTimeout(r, 0));
 
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
             const customName = document.getElementById('csvNameInput').value.trim();
             link.download = customName
-                ? `${customName}.csv`
-                : `${state.selectedProduct}_${state.selectedCommand}_${Date.now()}.csv`;
+                ? customName + '.csv'
+                : state.selectedProduct + '_' + state.selectedCommand + '_' + Date.now() + '.csv';
             link.click();
-        };
+
+            updateExportProgress(100, 'Listo!');
+            setTimeout(() => hideExportProgress(), 800);
+
+        } catch (err) {
+            if (err.message !== 'Cancelado por el usuario') {
+                alert('Error al exportar: ' + err.message);
+            }
+            hideExportProgress();
+        } finally {
+            clearTimeout(timeout);
+        }
     }
 
-    function downloadCustomAuditXLSX(template, includeHeaders) {
+    async function downloadCustomAuditXLSXAsync(template, includeHeaders) {
         const data = window.generatedCSVData;
+        const rowCount = data.length;
+        showExportProgress('Exportando XLSX');
+        updateExportProgress(5, 'Preparando ' + rowCount.toLocaleString() + ' filas...');
 
-        const aoa = [];
-        if (includeHeaders) {
-            aoa.push(template.columns);
+        const timeout = setTimeout(() => {
+            exportCancelled = true;
+            hideExportProgress();
+            alert('La exportacion tardo demasiado y fue cancelada. Intenta con menos datos.');
+        }, EXPORT_TIMEOUT_MS);
+
+        try {
+            const aoa = [];
+            if (includeHeaders) {
+                aoa.push(template.columns);
+            }
+
+            const rows = await processInChunks(data, 5000,
+                (row) => template.columns.map(col => row[col] || ''),
+                (pct, done, total) => {
+                    updateExportProgress(10 + pct * 0.5, 'Procesando fila ' + done.toLocaleString() + ' / ' + total.toLocaleString());
+                }
+            );
+
+            if (exportCancelled) return;
+            rows.forEach(r => aoa.push(r));
+
+            updateExportProgress(65, 'Generando archivo XLSX...');
+            await new Promise(r => setTimeout(r, 0));
+
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(aoa);
+            ws['!cols'] = template.columns.map(col => ({ wch: Math.max(String(col).length + 5, 15) }));
+            XLSX.utils.book_append_sheet(wb, ws, 'Resultado consulta');
+
+            updateExportProgress(90, 'Descargando...');
+            await new Promise(r => setTimeout(r, 0));
+
+            const customName = document.getElementById('csvNameInput').value.trim();
+            const fileName = customName
+                ? customName + '.xlsx'
+                : 'audit_personalizado_' + Date.now() + '.xlsx';
+            XLSX.writeFile(wb, fileName);
+
+            updateExportProgress(100, 'Listo!');
+            setTimeout(() => hideExportProgress(), 800);
+
+        } catch (err) {
+            if (err.message !== 'Cancelado por el usuario') {
+                alert('Error al exportar: ' + err.message);
+            }
+            hideExportProgress();
+        } finally {
+            clearTimeout(timeout);
         }
-        data.forEach(row => {
-            aoa.push(template.columns.map(col => row[col] || ''));
-        });
-
-        const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.aoa_to_sheet(aoa);
-
-        // Auto column widths
-        ws['!cols'] = template.columns.map(col => ({ wch: Math.max(String(col).length + 5, 15) }));
-
-        XLSX.utils.book_append_sheet(wb, ws, 'Resultado consulta');
-
-        const customName = document.getElementById('csvNameInput').value.trim();
-        const fileName = customName
-            ? customName + '.xlsx'
-            : `audit_personalizado_${Date.now()}.xlsx`;
-
-        XLSX.writeFile(wb, fileName);
     }
 
     function setupReset() {
