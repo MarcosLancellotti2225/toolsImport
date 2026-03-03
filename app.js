@@ -101,10 +101,10 @@
                 defaults: {}
             },
             'usuarios': {
-                columns: ['userid', 'email', 'nombre', 'apellidos', 'dni', 'telefono', 'grupo', 'rol'],
+                columns: ['id', 'nombre', 'apellidos', 'tipo de perfil', 'email', 'contraseña'],
                 defaults: {},
                 options: {
-                    rol: ['superadministrador', 'descargador', 'lector', 'editor', 'sincronizador', 'administrador']
+                    'tipo de perfil': ['superadministrador', 'descargador', 'lector', 'editor', 'sincronizador', 'administrador']
                 }
             }
         },
