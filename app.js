@@ -2747,7 +2747,8 @@
             updateExportProgress(95, 'Descargando...');
             await new Promise(r => setTimeout(r, 0));
 
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const BOM = '\uFEFF';
+            const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
             const customName = document.getElementById('csvNameInput').value.trim();
